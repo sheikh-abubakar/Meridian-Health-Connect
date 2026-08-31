@@ -1,0 +1,20 @@
+{
+  "name": "meridian-health-connect-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "seed": "node src/seed/seed.js",
+    "check": "node --check src/app.js && node --check src/server.js && node --check src/seed/seed.js && node --check src/controllers/userController.js && node --check src/routes/userRoutes.js && node --check src/models/AuditLog.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.18.0"
+  }
+}
