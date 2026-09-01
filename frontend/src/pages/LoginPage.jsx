@@ -15,7 +15,12 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  if (session?.tenant?.slug) return <Navigate to={`/${session.tenant.slug}/dashboard`} replace />;
+  if (session?.tenant?.slug) {
+    const destination = session.user.role === "admin"
+      ? `/${session.tenant.slug}/overview`
+      : `/${session.tenant.slug}/${session.location?.slug}/dashboard`;
+    return <Navigate to={destination} replace />;
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -23,7 +28,10 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       const authenticatedSession = await login(email, password);
-      navigate(`/${authenticatedSession.tenant.slug}/dashboard`, { replace: true });
+      const destination = authenticatedSession.user.role === "admin"
+        ? `/${authenticatedSession.tenant.slug}/overview`
+        : `/${authenticatedSession.tenant.slug}/${authenticatedSession.location.slug}/dashboard`;
+      navigate(destination, { replace: true });
     } catch (requestError) {
       setError(requestError.message);
     } finally {

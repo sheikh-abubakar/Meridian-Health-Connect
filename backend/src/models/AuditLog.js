@@ -8,6 +8,11 @@ const auditLogSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    locationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Location",
+      index: true,
+    },
     actorUserId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -24,4 +29,3 @@ const auditLogSchema = new mongoose.Schema(
 auditLogSchema.index({ tenantId: 1, timestamp: -1 });
 
 export const AuditLog = mongoose.model("AuditLog", auditLogSchema);
-

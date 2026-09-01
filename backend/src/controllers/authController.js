@@ -1,12 +1,13 @@
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { Tenant } from "../models/Tenant.js";
+import { Location } from "../models/Location.js";
 import { User } from "../models/User.js";
 import { verifyPassword } from "../services/passwordService.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-function createLoginResponse(user, tenant) {
+function createLoginResponse(user, tenant, location = null) {
   const accessToken = jwt.sign(
     { tenantId: tenant._id.toString(), role: user.role },
     env.jwtSecret,
@@ -17,6 +18,9 @@ function createLoginResponse(user, tenant) {
     accessToken,
     user: { id: user._id, name: user.name, email: user.email, role: user.role },
     tenant: { id: tenant._id, name: tenant.name, slug: tenant.slug },
+    location: location
+      ? { id: location._id, name: location.name, slug: location.slug }
+      : null,
   };
 }
 
@@ -32,7 +36,7 @@ export const discoverTenantAndLogin = asyncHandler(async (req, res) => {
 
   // This is the sole pre-tenant lookup. All post-login application data
   // remains scoped to the tenant carried by the verified access token.
-  const matchingUsers = await User.find({ email }).limit(2).select("+passwordHash");
+  const matchingUsers = await User.find({ email, isActive: { $ne: false } }).limit(2).select("+passwordHash");
   if (matchingUsers.length !== 1) {
     throw new ApiError(401, "Invalid credentials or clinic could not be uniquely resolved");
   }
@@ -44,19 +48,29 @@ export const discoverTenantAndLogin = asyncHandler(async (req, res) => {
 
   const tenant = await Tenant.findById(user.tenantId).lean();
   if (!tenant) throw new ApiError(401, "Invalid credentials or clinic could not be uniquely resolved");
+  const location = user.locationId
+    ? await Location.findOne({ _id: user.locationId, tenantId: tenant._id }).lean()
+    : null;
 
-  res.json({ success: true, data: createLoginResponse(user, tenant) });
+  res.json({ success: true, data: createLoginResponse(user, tenant, location) });
 });
 
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = readCredentials(req);
 
-  const user = await User.findOne({ email, tenantId: req.tenantId }).select("+passwordHash");
+  const user = await User.findOne({
+    email,
+    tenantId: req.tenantId,
+    isActive: { $ne: false },
+  }).select("+passwordHash");
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     throw new ApiError(401, "Invalid email or password");
   }
 
-  res.json({ success: true, data: createLoginResponse(user, req.tenant) });
+  const location = user.locationId
+    ? await Location.findOne({ _id: user.locationId, tenantId: req.tenantId }).lean()
+    : null;
+  res.json({ success: true, data: createLoginResponse(user, req.tenant, location) });
 });
 
 export const getSession = asyncHandler(async (req, res) => {

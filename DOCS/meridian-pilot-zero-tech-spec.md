@@ -50,27 +50,41 @@ meridian-pilot-zero/
 
 ---
 
-## 3. Multi-Tenancy Strategy
+## 3. Multi-Tenancy & Multi-Location Strategy
 
 - **Slug-based tenant resolution.** Every tenant has a unique `slug`
   (e.g. `city-care`, `green-valley`).
-- Authenticated routes are structured as `/api/:tenantSlug/...` on the backend
-  and `/:tenantSlug/...` on the frontend. The public entry page is `/login`:
-  `POST /api/auth/login` resolves the tenant from the unique staff email and
-  redirects the UI to `/:tenantSlug/dashboard`. This pre-authentication lookup
-  is the sole tenant-filter exception. Duplicate emails across tenants fail
-  safely until a future organization-selection flow is defined.
-- Backend middleware `resolveTenant` reads `:tenantSlug` from the URL,
-  looks up the `Tenant` document, and attaches `req.tenantId` to the request.
-- **Every query on every tenant-scoped collection must filter by `tenantId`.**
-  This is the core isolation guarantee — no exceptions, no shared lookups
-  across tenants unless explicitly building the (out-of-scope) transfer
-  workflow.
-- No tenant self-signup in POC. Tenants + their first Clinic Admin are
-  created via a seed script (`backend/src/seed/seed.js`), simulating the
-  "Meridian Super Admin onboards a clinic" process described in the RFP
-  (Section 4, Section 7.1). This simulation should be one sentence in the
-  final project plan doc, not built as a feature.
+- **Slug-based location resolution, nested under tenant.** Every tenant
+  can have multiple `Location` documents (separate collection, not
+  nested fields — see Section 5), each with its own `slug`, unique
+  *within* that tenant (e.g. `city-care` tenant has locations `gulberg`
+  and `dha`).
+- Backend routes are scoped in two tiers:
+  - Tenant-level only (auth, tenant-wide overview/analytics):
+    `/api/:tenantSlug/...`
+  - Location-level (staff, patients, appointments, encounters, care
+    plans, tasks — everything operational): `/api/:tenantSlug/:locationSlug/...`
+- Frontend mirrors this: after login, Admin lands on
+  `/:tenantSlug/overview` (a tenant-wide analytics view showing each
+  location's basic stats). Selecting a location navigates into
+  `/:tenantSlug/:locationSlug/dashboard`, and everything done from there
+  (staff management, scheduling, etc.) is scoped to that location only.
+  A persistent indicator (e.g. in the top bar) always shows which
+  tenant + location scope is currently active.
+- Middleware chain: `resolveTenant` (from `:tenantSlug`) runs first and
+  sets `req.tenantId`; `resolveLocation` (from `:locationSlug`) runs next
+  and looks up the location **scoped to the already-resolved tenantId**
+  (a location slug must never resolve across tenants), setting
+  `req.locationId`.
+- **Every query on every location-scoped collection must filter by both
+  `tenantId` AND `locationId`.** This is the core isolation guarantee,
+  extending the same principle used for tenant isolation.
+- No tenant/location self-signup in POC. Tenants, their locations, and
+  each tenant's first Clinic Admin are created via a seed script
+  (`backend/src/seed/seed.js`), simulating the "Meridian Super Admin
+  onboards a clinic" process described in the RFP (Section 4, Section
+  7.1). This simulation should be one sentence in the final project plan
+  doc, not built as a feature.
 
 ---
 
@@ -100,24 +114,49 @@ to a future phase — see Section 9 in this doc).
 
 ### Location
 ```
-{ _id, tenantId, name, address, createdAt }
+{ _id, tenantId, name, slug, address, createdAt }
 ```
 A tenant can have one or more locations (RFP Section 4: multi-location
-groups). Appointment and Encounter reference a `locationId`. For POC, seed
-1–2 locations per tenant — this demonstrates multi-location support with
-minimal effort.
+groups). `slug` is unique within a tenant (e.g. `gulberg`, `dha`), used for
+`/:tenantSlug/:locationSlug/...` URL scoping (see Section 3). Every
+location-scoped collection (User, Patient, Appointment, Encounter,
+CarePlan, Task) references `locationId`. For POC, seed 2 locations per
+tenant.
 
 ### User
 ```
-{ _id, tenantId, name, email, passwordHash, role: 
-  ["admin","frontdesk","doctor","care_coordinator"], createdAt }
+{ _id, tenantId, locationId (null for Admin, required for other roles),
+  name, email, passwordHash, isActive,
+  role: ["admin","frontdesk","doctor","care_coordinator"], createdAt }
 ```
+Clinic Admin is tenant-wide (`locationId: null`) and can access every
+location's Overview and drill into any of them. Doctor, Front-desk, and
+Care Coordinator are created from within a specific location's scope and
+are tied to that `locationId` — they only ever operate within their
+assigned branch.
+
+All authenticated roles have a tenant-scoped profile/security view and may
+change their password after confirming the current password. Admin staff
+removal is implemented as audited account deactivation (`isActive: false`),
+not destructive deletion, so historical clinical and audit references remain
+intact.
 
 ### Patient
 ```
-{ _id, tenantId, name, contact: { phone, email }, address,
+{ _id, tenantId, locationId, name, contact: { phone, email }, address,
   insuranceInfo: { provider, policyNumber } (optional), createdAt }
 ```
+
+### Availability
+```
+{ _id, tenantId, locationId, doctorId,
+  slots: [{ dayOfWeek: 0-6, startTime: "HH:mm", endTime: "HH:mm" }],
+  createdAt }
+```
+Simple weekly recurring schedule per doctor per location (no
+date-specific overrides/holidays in POC). Doctor sets this from their own
+dashboard; Front-desk's booking flow validates against it and enforces
+double-booking prevention (RFP Section 6.1).
 
 ### Appointment
 ```
@@ -139,7 +178,7 @@ minimal effort.
 
 ### CarePlan
 ```
-{ _id, tenantId, patientId, createdByDoctorId, goal, targetMeasure,
+{ _id, tenantId, locationId, patientId, createdByDoctorId, goal, targetMeasure,
   reviewCadence, owningCareTeamMemberId,
   history: [{ change, actor, timestamp, reason }],
   createdAt }

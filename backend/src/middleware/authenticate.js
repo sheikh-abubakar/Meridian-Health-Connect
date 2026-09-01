@@ -24,10 +24,10 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   const user = await User.findOne({
     _id: payload.sub,
     tenantId: req.tenantId,
+    isActive: { $ne: false },
   }).lean();
   if (!user) throw new ApiError(401, "User account not found");
 
   req.user = user;
   next();
 });
-

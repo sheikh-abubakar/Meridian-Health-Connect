@@ -7,7 +7,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "seed": "node src/seed/seed.js",
-    "check": "node --check src/app.js && node --check src/server.js && node --check src/seed/seed.js && node --check src/controllers/userController.js && node --check src/routes/userRoutes.js && node --check src/models/AuditLog.js"
+    "check": "node --check src/app.js && node --check src/server.js && node --check src/seed/seed.js && node --check src/controllers/userController.js && node --check src/controllers/profileController.js && node --check src/controllers/analyticsController.js && node --check src/controllers/encounterController.js && node --check src/controllers/appointmentController.js && node --check src/controllers/patientController.js && node --check src/controllers/carePlanController.js && node --check src/controllers/taskController.js && node --check src/controllers/doctorPatientController.js && node --check src/routes/encounterRoutes.js && node --check src/routes/patientRoutes.js && node --check src/routes/carePlanRoutes.js && node --check src/routes/taskRoutes.js && node --check src/models/Encounter.js && node --check src/models/Patient.js && node --check src/models/CarePlan.js && node --check src/models/Task.js && node --check src/middleware/resolveLocation.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

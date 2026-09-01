@@ -8,7 +8,9 @@ export function errorHandler(error, _req, res, _next) {
   const isDuplicateKey = error?.code === 11000;
   const statusCode = isDuplicateKey ? 409 : error.statusCode || 500;
   const message = isDuplicateKey
-    ? "A record with this value already exists"
+    ? (error?.keyPattern?.doctorId && error?.keyPattern?.scheduledAt
+      ? "Doctor already has an appointment at this date and time"
+      : "A record with this value already exists")
     : statusCode === 500 ? "An unexpected error occurred" : error.message;
 
   if (statusCode === 500) console.error(error);

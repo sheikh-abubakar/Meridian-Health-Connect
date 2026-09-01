@@ -11,15 +11,38 @@ const tenants = [
     slug: "city-care",
     admin: { name: "Amina Khan", email: "admin@citycare.test" },
     locations: [
-      { name: "Downtown Clinic", address: "100 Central Avenue, Austin, TX" },
-      { name: "North Clinic", address: "2400 North Loop, Austin, TX" },
+      {
+        name: "Gulberg Branch",
+        slug: "gulberg",
+        address: "Main Boulevard, Gulberg",
+        legacyNames: ["Downtown Clinic"],
+      },
+      {
+        name: "DHA Branch",
+        slug: "dha",
+        address: "Commercial Avenue, DHA",
+        legacyNames: ["North Clinic"],
+      },
     ],
   },
   {
     name: "Green Valley Health",
     slug: "green-valley",
     admin: { name: "Daniel Brooks", email: "admin@greenvalley.test" },
-    locations: [{ name: "Main Clinic", address: "45 Valley Road, Denver, CO" }],
+    locations: [
+      {
+        name: "Johar Town Branch",
+        slug: "johar-town",
+        address: "Main Boulevard, Johar Town",
+        legacyNames: ["Main Clinic"],
+      },
+      {
+        name: "Bahria Branch",
+        slug: "bahria",
+        address: "Central Avenue, Bahria Town",
+        legacyNames: [],
+      },
+    ],
   },
 ];
 
@@ -35,18 +58,35 @@ async function seed() {
       { upsert: true, new: true, runValidators: true },
     );
 
+    const seededLocations = [];
     for (const location of item.locations) {
-      await Location.findOneAndUpdate(
-        { tenantId: tenant._id, name: location.name },
-        { $set: { address: location.address } },
+      const seededLocation = await Location.findOneAndUpdate(
+        {
+          tenantId: tenant._id,
+          $or: [
+            { slug: location.slug },
+            { name: { $in: location.legacyNames } },
+          ],
+        },
+        { $set: { name: location.name, slug: location.slug, address: location.address } },
         { upsert: true, new: true, runValidators: true },
       );
+      seededLocations.push(seededLocation);
     }
 
     await User.findOneAndUpdate(
       { tenantId: tenant._id, email: item.admin.email },
-      { $set: { ...item.admin, passwordHash, role: "admin" } },
+      { $set: { ...item.admin, passwordHash, role: "admin", isActive: true }, $unset: { locationId: "" } },
       { upsert: true, new: true, runValidators: true },
+    );
+
+    await User.updateMany(
+      {
+        tenantId: tenant._id,
+        role: { $ne: "admin" },
+        locationId: { $exists: false },
+      },
+      { $set: { locationId: seededLocations[0]._id } },
     );
   }
 
