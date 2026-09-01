@@ -3,9 +3,12 @@ import { acceptAiSummary, addAmendment, finalizeEncounter, generateAiSummary, ge
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeLocationAccess } from "../middleware/authorizeLocationAccess.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { exportEncounter } from "../controllers/recordExportController.js";
 
 export const encounterRouter = Router({ mergeParams: true });
-encounterRouter.use(authenticate, authorizeLocationAccess, authorizeRoles("doctor"));
+encounterRouter.use(authenticate, authorizeLocationAccess);
+encounterRouter.get("/:id/export", authorizeRoles("doctor", "admin"), exportEncounter);
+encounterRouter.use(authorizeRoles("doctor"));
 encounterRouter.post("/", startEncounter);
 encounterRouter.get("/patient/:patientId", listPatientEncounters);
 encounterRouter.get("/:id", getEncounter);

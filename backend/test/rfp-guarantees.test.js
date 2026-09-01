@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import { app } from "../src/app.js";
 import { env } from "../src/config/env.js";
 import { Appointment } from "../src/models/Appointment.js";
+import { AuditLog } from "../src/models/AuditLog.js";
 import { CarePlan } from "../src/models/CarePlan.js";
 import { Encounter } from "../src/models/Encounter.js";
 import { Location } from "../src/models/Location.js";
@@ -30,6 +31,13 @@ async function request(path, { user, tenant, method = "GET", body } = {}) {
   });
   const payload = await response.json();
   return { status: response.status, body: payload };
+}
+
+async function requestPdf(path, { user, tenant }) {
+  const response = await fetch(`${baseUrl}/api${path}`, {
+    headers: { Authorization: `Bearer ${token(user, tenant)}` },
+  });
+  return { status: response.status, contentType: response.headers.get("content-type"), bytes: Buffer.from(await response.arrayBuffer()) };
 }
 
 async function staff(tenantId, locationId, name, role) {
@@ -138,6 +146,32 @@ test("finalized encounter notes are immutable while amendments append", async ()
   assert.equal(persisted.notes.diagnosis, "Original diagnosis");
   assert.equal(persisted.amendments.length, 1);
   assert.equal(persisted.amendments[0].text, "Follow-up clarification");
+});
+
+test("record exports produce PDFs, enforce role guards, and create audit evidence", async () => {
+  const f = fixtures;
+  const appointment = await Appointment.create({ tenantId: f.city._id, locationId: f.gulberg._id, patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, visitType: "Export verification", scheduledAt: new Date("2030-01-11T10:00:00Z"), status: "completed", eligibilityStatus: "verified", createdBy: f.cityFrontdesk._id });
+  const encounter = await Encounter.create({ tenantId: f.city._id, locationId: f.gulberg._id, appointmentId: appointment._id, patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, notes: { symptoms: "Recorded symptom", observations: "Recorded observation", diagnosis: "Clinician diagnosis" }, status: "finalized", finalizedAt: new Date() });
+
+  const frontdeskProfile = await request(`/city-care/gulberg/patients/${f.gulbergPatient._id}`, { user: f.cityFrontdesk, tenant: f.city });
+  const administrativeEncounter = frontdeskProfile.body.data.encounters.find((item) => item._id === String(encounter._id));
+  assert.ok(administrativeEncounter.appointmentId.scheduledAt);
+  assert.equal(administrativeEncounter.notes, undefined);
+  assert.equal(administrativeEncounter.aiSummary, undefined);
+  assert.equal(administrativeEncounter.amendments, undefined);
+
+  const clinical = await requestPdf(`/city-care/gulberg/encounters/${encounter._id}/export`, { user: f.cityDoctor, tenant: f.city });
+  assert.equal(clinical.status, 200);
+  assert.match(clinical.contentType, /^application\/pdf/);
+  assert.equal(clinical.bytes.subarray(0, 4).toString(), "%PDF");
+  assert.equal((await request(`/city-care/gulberg/encounters/${encounter._id}/export`, { user: f.cityFrontdesk, tenant: f.city })).status, 403);
+
+  const administrative = await requestPdf(`/city-care/gulberg/patients/${f.gulbergPatient._id}/export`, { user: f.cityFrontdesk, tenant: f.city });
+  assert.equal(administrative.status, 200);
+  assert.match(administrative.contentType, /^application\/pdf/);
+  assert.equal(administrative.bytes.subarray(0, 4).toString(), "%PDF");
+  assert.equal(await AuditLog.countDocuments({ action: "encounter_exported", targetId: encounter._id }), 1);
+  assert.equal(await AuditLog.countDocuments({ action: "patient_history_exported", targetId: f.gulbergPatient._id }), 1);
 });
 
 test("task assignment rejects patients and cross-location users but accepts local staff", async () => {

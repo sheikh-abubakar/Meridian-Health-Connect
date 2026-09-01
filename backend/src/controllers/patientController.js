@@ -56,9 +56,16 @@ export const getPatient = asyncHandler(async (req, res) => {
   const scope = { tenantId: req.tenantId, locationId: req.locationId, patientId: req.params.id };
   const patient = await Patient.findOne({ _id: req.params.id, tenantId: req.tenantId, locationId: req.locationId }).lean();
   if (!patient) throw new ApiError(404, "Patient not found in this location");
+  const encounterQuery = Encounter.find(scope)
+    .populate({ path: "doctorId", select: "name", match: { tenantId: req.tenantId, locationId: req.locationId } })
+    .populate({ path: "appointmentId", select: "visitType scheduledAt status", match: { tenantId: req.tenantId, locationId: req.locationId } })
+    .sort({ createdAt: -1 });
+  if (req.user.role === "frontdesk") {
+    encounterQuery.select("doctorId appointmentId status createdAt finalizedAt");
+  }
   const [appointments, encounters] = await Promise.all([
     Appointment.find(scope).populate({ path: "doctorId", select: "name", match: { tenantId: req.tenantId, locationId: req.locationId } }).sort({ scheduledAt: -1 }).lean(),
-    Encounter.find(scope).populate({ path: "doctorId", select: "name", match: { tenantId: req.tenantId, locationId: req.locationId } }).sort({ createdAt: -1 }).lean(),
+    encounterQuery.lean(),
   ]);
   res.json({ success: true, data: { patient: serializePatient(patient), appointments, encounters } });
 });
