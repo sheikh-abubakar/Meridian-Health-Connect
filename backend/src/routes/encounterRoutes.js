@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addAmendment, finalizeEncounter, getEncounter, listPatientEncounters, startEncounter, updateDraft } from "../controllers/encounterController.js";
+import { acceptAiSummary, addAmendment, finalizeEncounter, generateAiSummary, getEncounter, listPatientEncounters, startEncounter, updateDraft } from "../controllers/encounterController.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeLocationAccess } from "../middleware/authorizeLocationAccess.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
@@ -9,7 +9,8 @@ encounterRouter.use(authenticate, authorizeLocationAccess, authorizeRoles("docto
 encounterRouter.post("/", startEncounter);
 encounterRouter.get("/patient/:patientId", listPatientEncounters);
 encounterRouter.get("/:id", getEncounter);
+encounterRouter.post("/:id/ai-summary", generateAiSummary);
+encounterRouter.patch("/:id/ai-summary", acceptAiSummary);
 encounterRouter.patch("/:id", updateDraft);
 encounterRouter.patch("/:id/finalize", finalizeEncounter);
 encounterRouter.post("/:id/amend", addAmendment);
-

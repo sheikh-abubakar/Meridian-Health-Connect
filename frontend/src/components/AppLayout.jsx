@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Building2, CalendarDays, ClipboardCheck, ClipboardClock, HeartHandshake, LayoutDashboard, LogOut, MapPin, Stethoscope, UserCircle, UserRound, Users } from "lucide-react";
+import { ArrowLeft, Building2, CalendarDays, ClipboardCheck, ClipboardClock, HeartHandshake, LayoutDashboard, LogOut, MapPin, ScrollText, Stethoscope, UserCircle, UserRound, Users } from "lucide-react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ export function AppLayout() {
   const navigation = [
     { label: "Dashboard", to: `/${tenantSlug}/${locationSlug}/dashboard`, icon: LayoutDashboard, visible: true },
     { label: "Staff", to: `/${tenantSlug}/${locationSlug}/staff`, icon: Users, visible: session.user.role === "admin" },
+    { label: "Audit Log", to: `/${tenantSlug}/${locationSlug}/audit-log`, icon: ScrollText, visible: session.user.role === "admin" },
     { label: "Patients", to: `/${tenantSlug}/${locationSlug}/patients`, icon: UserRound, visible: session.user.role === "frontdesk" },
     { label: "Scheduling", to: `/${tenantSlug}/${locationSlug}/scheduling`, icon: CalendarDays, visible: session.user.role === "frontdesk" },
     { label: "My Availability", to: `/${tenantSlug}/${locationSlug}/availability`, icon: ClipboardClock, visible: session.user.role === "doctor" },

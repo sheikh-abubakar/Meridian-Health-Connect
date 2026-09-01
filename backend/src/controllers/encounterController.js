@@ -5,6 +5,7 @@ import { Encounter } from "../models/Encounter.js";
 import { Patient } from "../models/Patient.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { generateClinicalSummary, GROQ_SUMMARY_MODEL } from "../services/groqSummaryService.js";
 
 function scopedEncounterQuery(query, req) {
   const match = { tenantId: req.tenantId, locationId: req.locationId };
@@ -122,6 +123,30 @@ export const updateDraft = asyncHandler(async (req, res) => {
   }
   await encounter.save();
 
+  const populated = await scopedEncounterQuery(Encounter.findOne(encounterFilter(req)), req).lean();
+  res.json({ success: true, data: { encounter: populated } });
+});
+
+export const generateAiSummary = asyncHandler(async (req, res) => {
+  const encounter = await Encounter.findOne(encounterFilter(req)).lean();
+  if (!encounter) throw new ApiError(404, "Draft encounter not found in this location");
+  if (encounter.status !== "draft") throw new ApiError(409, "AI summaries can only be generated before encounter finalization");
+  if (![encounter.notes.symptoms, encounter.notes.observations, encounter.notes.diagnosis].some((value) => value?.trim())) throw new ApiError(400, "Add clinical notes before generating an AI summary");
+  const suggestion = await generateClinicalSummary(encounter.notes);
+  res.json({ success: true, data: { suggestion } });
+});
+
+export const acceptAiSummary = asyncHandler(async (req, res) => {
+  const text = String(req.body.text || "").trim();
+  if (!text) throw new ApiError(400, "Accepted clinical summary text is required");
+  if (text.length > 10000) throw new ApiError(400, "Clinical summary cannot exceed 10000 characters");
+  const encounter = await Encounter.findOne(encounterFilter(req));
+  if (!encounter) throw new ApiError(404, "Draft encounter not found in this location");
+  if (encounter.status !== "draft") throw new ApiError(409, "Finalized AI-assisted summaries are immutable; add an amendment instead");
+  const generatedAt = new Date(req.body.generatedAt);
+  encounter.aiSummary = { text, generatedAt: Number.isNaN(generatedAt.getTime()) ? new Date() : generatedAt, model: GROQ_SUMMARY_MODEL, acceptedAt: new Date() };
+  await encounter.save();
+  await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "ai_summary_accepted", targetType: "Encounter", targetId: encounter._id });
   const populated = await scopedEncounterQuery(Encounter.findOne(encounterFilter(req)), req).lean();
   res.json({ success: true, data: { encounter: populated } });
 });

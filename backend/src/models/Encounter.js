@@ -21,6 +21,12 @@ const encounterSchema = new mongoose.Schema(
       observations: { type: String, default: "", trim: true },
       diagnosis: { type: String, default: "", trim: true },
     },
+    aiSummary: {
+      text: { type: String, trim: true, maxlength: 10000 },
+      generatedAt: { type: Date },
+      model: { type: String, trim: true },
+      acceptedAt: { type: Date },
+    },
     status: { type: String, enum: ["draft", "finalized"], default: "draft" },
     finalizedAt: { type: Date },
     amendments: { type: [amendmentSchema], default: [] },
@@ -34,19 +40,18 @@ encounterSchema.index(
 );
 encounterSchema.index({ tenantId: 1, locationId: 1, patientId: 1, createdAt: -1 });
 
-encounterSchema.pre("save", async function preventFinalizedNoteMutation() {
-  if (this.isNew || !this.isModified("notes")) return;
+encounterSchema.pre("save", async function preventFinalizedClinicalMutation() {
+  if (this.isNew || (!this.isModified("notes") && !this.isModified("aiSummary"))) return;
   const persisted = await this.constructor.findOne({
     _id: this._id,
     tenantId: this.tenantId,
     locationId: this.locationId,
   }).select("status").lean();
   if (persisted?.status === "finalized") {
-    const error = new Error("Finalized encounter notes are immutable; add an amendment instead");
+    const error = new Error("Finalized encounter notes and AI-assisted summary are immutable; add an amendment instead");
     error.statusCode = 409;
     throw error;
   }
 });
 
 export const Encounter = mongoose.model("Encounter", encounterSchema);
-

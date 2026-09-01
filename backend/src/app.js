@@ -12,6 +12,7 @@ import { directoryRouter } from "./routes/directoryRoutes.js";
 import { encounterRouter } from "./routes/encounterRoutes.js";
 import { carePlanRouter } from "./routes/carePlanRoutes.js";
 import { taskRouter } from "./routes/taskRoutes.js";
+import { auditLogRouter } from "./routes/auditLogRoutes.js";
 import { publicAuthRouter } from "./routes/publicAuthRoutes.js";
 import { locationContextRouter } from "./routes/locationContextRoutes.js";
 import { overviewRouter } from "./routes/overviewRoutes.js";
@@ -41,6 +42,7 @@ app.use("/api/:tenantSlug/:locationSlug/appointments", resolveTenant, resolveLoc
 app.use("/api/:tenantSlug/:locationSlug/encounters", resolveTenant, resolveLocation, encounterRouter);
 app.use("/api/:tenantSlug/:locationSlug/careplans", resolveTenant, resolveLocation, carePlanRouter);
 app.use("/api/:tenantSlug/:locationSlug/tasks", resolveTenant, resolveLocation, taskRouter);
+app.use("/api/:tenantSlug/:locationSlug/audit-logs", resolveTenant, resolveLocation, auditLogRouter);
 app.use("/api/:tenantSlug/:locationSlug", resolveTenant, resolveLocation, directoryRouter);
 
 app.use(notFoundHandler);

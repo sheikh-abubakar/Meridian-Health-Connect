@@ -3,6 +3,7 @@ import { env } from "../config/env.js";
 import { Tenant } from "../models/Tenant.js";
 import { Location } from "../models/Location.js";
 import { User } from "../models/User.js";
+import { AuditLog } from "../models/AuditLog.js";
 import { verifyPassword } from "../services/passwordService.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -52,6 +53,8 @@ export const discoverTenantAndLogin = asyncHandler(async (req, res) => {
     ? await Location.findOne({ _id: user.locationId, tenantId: tenant._id }).lean()
     : null;
 
+  await AuditLog.create({ tenantId: tenant._id, locationId: location?._id, actorUserId: user._id, action: "user_logged_in", targetType: "User", targetId: user._id });
+
   res.json({ success: true, data: createLoginResponse(user, tenant, location) });
 });
 
@@ -70,6 +73,7 @@ export const login = asyncHandler(async (req, res) => {
   const location = user.locationId
     ? await Location.findOne({ _id: user.locationId, tenantId: req.tenantId }).lean()
     : null;
+  await AuditLog.create({ tenantId: req.tenantId, locationId: location?._id, actorUserId: user._id, action: "user_logged_in", targetType: "User", targetId: user._id });
   res.json({ success: true, data: createLoginResponse(user, req.tenant, location) });
 });
 

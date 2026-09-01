@@ -42,3 +42,15 @@ Seeded admin emails are `admin@citycare.test` and `admin@greenvalley.test`. Thei
 - `POST /api/:tenantSlug/:locationSlug/encounters/:id/amend` (finalized encounters only)
 
 Tenants and their first Clinic Admin are created by the seed script, simulating Meridian Super Admin onboarding without adding an out-of-scope Super Admin UI.
+
+## Automated acceptance tests
+
+Run the focused RFP guarantee suite with:
+
+```powershell
+npm test --prefix backend
+```
+
+The suite uses Node's built-in test runner and the real Express API stack. It connects using `TEST_MONGODB_URI` when provided, otherwise the configured MongoDB cluster, but always overrides the database name with a unique `meridian_test_<pid>_<time>` database. The name is validated before use and before teardown; the disposable database is dropped after the run, so seeded development data is never queried, changed, or deleted.
+
+The seven tests cover tenant isolation, location isolation, role guards, appointment state transitions, finalized-note immutability, task-assignee validation, and care-plan version history. Full combinatorial negative/boundary coverage, load and performance testing, backup/restore drills, deployment rollback, and disaster recovery remain documented production-readiness approaches rather than implemented POC automation.
