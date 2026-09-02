@@ -7,10 +7,13 @@ import { app } from "../src/app.js";
 import { env } from "../src/config/env.js";
 import { Appointment } from "../src/models/Appointment.js";
 import { AuditLog } from "../src/models/AuditLog.js";
+import { Availability } from "../src/models/Availability.js";
 import { CarePlan } from "../src/models/CarePlan.js";
 import { Encounter } from "../src/models/Encounter.js";
 import { Location } from "../src/models/Location.js";
 import { Patient } from "../src/models/Patient.js";
+import { RecallRequest } from "../src/models/RecallRequest.js";
+import { Task } from "../src/models/Task.js";
 import { Tenant } from "../src/models/Tenant.js";
 import { User } from "../src/models/User.js";
 
@@ -184,6 +187,53 @@ test("task assignment rejects patients and cross-location users but accepts loca
   assert.equal(patientAssignee.status, 400); assert.match(patientAssignee.body.error.message, /patients cannot be assigned/i);
   assert.equal((await request("/city-care/gulberg/tasks", { user: f.cityDoctor, tenant: f.city, method: "POST", body: { ...payload, assignedToUserId: f.dhaDoctor._id } })).status, 400);
   assert.equal((await request("/city-care/gulberg/tasks", { user: f.cityDoctor, tenant: f.city, method: "POST", body: { ...payload, assignedToUserId: f.cityCoordinator._id } })).status, 201);
+});
+
+test("recall handoff preserves general tasks and keeps outreach requests location scoped", async () => {
+  const f = fixtures;
+  const appointment = await Appointment.create({ tenantId: f.city._id, locationId: f.gulberg._id, patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, visitType: "Recall source", scheduledAt: new Date("2030-01-12T10:00:00Z"), status: "completed", eligibilityStatus: "verified", createdBy: f.cityFrontdesk._id });
+  const encounter = await Encounter.create({ tenantId: f.city._id, locationId: f.gulberg._id, appointmentId: appointment._id, patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, status: "finalized", finalizedAt: new Date() });
+  const plan = await CarePlan.create({ tenantId: f.city._id, locationId: f.gulberg._id, patientId: f.gulbergPatient._id, encounterId: encounter._id, createdByDoctorId: f.cityDoctor._id, goal: "Arrange follow-up", targetMeasure: "Return visit", reviewCadence: "Two weeks", owningCareTeamMemberId: f.cityCoordinator._id, history: [{ change: "Created", actor: f.cityDoctor._id, reason: "Recall test" }] });
+  const baseTask = { carePlanId: plan._id, assignedToUserId: f.cityCoordinator._id, description: "Contact patient", dueDate: "2030-01-15" };
+
+  const general = await request("/city-care/gulberg/tasks", { user: f.cityDoctor, tenant: f.city, method: "POST", body: baseTask });
+  assert.equal(general.status, 201);
+  assert.equal(general.body.data.task.type, "general");
+  const rejected = await request(`/city-care/gulberg/tasks/${general.body.data.task._id}/outcome`, { user: f.cityCoordinator, tenant: f.city, method: "PATCH", body: { outcome: "declined" } });
+  assert.equal(rejected.status, 400);
+  assert.match(rejected.body.error.message, /outreach tasks/i);
+  assert.equal((await Task.findById(general.body.data.task._id).lean()).status, "open");
+
+  const outreach = await request("/city-care/gulberg/tasks", { user: f.cityDoctor, tenant: f.city, method: "POST", body: { ...baseTask, description: "Arrange recall visit", type: "outreach" } });
+  assert.equal(outreach.status, 201);
+  assert.equal(outreach.body.data.task.type, "outreach");
+  const agreed = await request(`/city-care/gulberg/tasks/${outreach.body.data.task._id}/outcome`, { user: f.cityCoordinator, tenant: f.city, method: "PATCH", body: { outcome: "agreed", timeframe: "2_weeks", note: "Patient agreed to return in two weeks." } });
+  assert.equal(agreed.status, 200);
+  assert.equal(agreed.body.data.task.status, "completed");
+  assert.equal(agreed.body.data.task.outcome, "agreed");
+  const recallId = agreed.body.data.recallRequest._id;
+  const recall = await RecallRequest.findById(recallId).lean();
+  assert.equal(String(recall.locationId), String(f.gulberg._id));
+  assert.equal(String(recall.patientId), String(f.gulbergPatient._id));
+
+  const gulbergPending = await request("/city-care/gulberg/recall-requests?status=pending_scheduling", { user: f.cityFrontdesk, tenant: f.city });
+  assert.equal(gulbergPending.status, 200);
+  assert.ok(gulbergPending.body.data.recallRequests.some((item) => item._id === recallId));
+  const dhaPending = await request("/city-care/dha/recall-requests?status=pending_scheduling", { user: f.dhaFrontdesk, tenant: f.city });
+  assert.equal(dhaPending.status, 200);
+  assert.ok(!dhaPending.body.data.recallRequests.some((item) => item._id === recallId));
+
+  const scheduledAt = new Date("2030-01-14T10:00:00Z");
+  await Availability.create({ tenantId: f.city._id, locationId: f.gulberg._id, doctorId: f.cityDoctor._id, slots: [{ dayOfWeek: scheduledAt.getUTCDay(), startTime: "00:00", endTime: "23:59" }] });
+  const scheduled = await request(`/city-care/gulberg/recall-requests/${recallId}/schedule`, { user: f.cityFrontdesk, tenant: f.city, method: "POST", body: { visitType: "Follow-up consultation", scheduledAt: "2030-01-14T10:00" } });
+  assert.equal(scheduled.status, 201);
+  assert.equal(scheduled.body.data.recallRequest.status, "scheduled");
+  assert.equal(String(scheduled.body.data.appointment.patientId._id), String(f.gulbergPatient._id));
+  assert.equal(String(scheduled.body.data.appointment.doctorId._id), String(f.cityDoctor._id));
+  assert.equal((await request("/city-care/gulberg/recall-requests?status=pending_scheduling", { user: f.cityFrontdesk, tenant: f.city })).body.data.recallRequests.some((item) => item._id === recallId), false);
+  assert.equal(await AuditLog.countDocuments({ action: "task_outcome_recorded", targetId: outreach.body.data.task._id }), 1);
+  assert.equal(await AuditLog.countDocuments({ action: "recall_request_created", targetId: recallId }), 1);
+  assert.equal(await AuditLog.countDocuments({ action: "recall_request_scheduled", targetId: recallId }), 1);
 });
 
 test("care plan updates require a reason and append version history", async () => {

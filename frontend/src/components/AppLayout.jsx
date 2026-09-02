@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, CalendarDays, ClipboardCheck, ClipboardClock, HeartHandshake, LayoutDashboard, LogOut, MapPin, ScrollText, Stethoscope, UserCircle, UserRound, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, ClipboardCheck, ClipboardClock, HeartHandshake, LayoutDashboard, LogOut, MapPin, PhoneCall, ScrollText, Stethoscope, UserCircle, UserRound, Users } from "lucide-react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
 import { apiRequest, prefetchApi } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ export function AppLayout() {
       if (active) setLocation(data.location);
       const pathsByRole = {
         admin: [`${root}/analytics`, `${root}/users`, `${root}/audit-logs`],
-        frontdesk: [`${root}/patients`, `${root}/appointments`, `${root}/doctors`],
+        frontdesk: [`${root}/patients`, `${root}/appointments`, `${root}/doctors`, `${root}/recall-requests?status=pending_scheduling`],
         doctor: [`${root}/availability/${session.user.id}`, `${root}/appointments?status=checked_in`, `${root}/my-patients`, `${root}/careplans?owningCareTeamMemberId=me`],
         care_coordinator: [`${root}/tasks?assignedToUserId=me`, `${root}/careplans?owningCareTeamMemberId=me`],
       };
@@ -42,6 +42,7 @@ export function AppLayout() {
     { label: "Audit Log", group: "Management", to: `/${tenantSlug}/${locationSlug}/audit-log`, icon: ScrollText, visible: session.user.role === "admin" },
     { label: "Patients", group: "Operations", to: `/${tenantSlug}/${locationSlug}/patients`, icon: UserRound, visible: session.user.role === "frontdesk" },
     { label: "Scheduling", group: "Operations", to: `/${tenantSlug}/${locationSlug}/scheduling`, icon: CalendarDays, visible: session.user.role === "frontdesk" },
+    { label: "Recall Requests", group: "Operations", to: `/${tenantSlug}/${locationSlug}/recall-requests`, icon: PhoneCall, visible: session.user.role === "frontdesk" },
     { label: "My Availability", group: "Clinical", to: `/${tenantSlug}/${locationSlug}/availability`, icon: ClipboardClock, visible: session.user.role === "doctor" },
     { label: "My Queue", group: "Clinical", to: `/${tenantSlug}/${locationSlug}/queue`, icon: Stethoscope, visible: session.user.role === "doctor" },
     { label: "My Patients", group: "Clinical", to: `/${tenantSlug}/${locationSlug}/my-patients`, icon: UserRound, visible: session.user.role === "doctor" },

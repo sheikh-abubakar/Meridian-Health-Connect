@@ -19,6 +19,7 @@ import { overviewRouter } from "./routes/overviewRoutes.js";
 import { patientRouter } from "./routes/patientRoutes.js";
 import { profileRouter } from "./routes/profileRoutes.js";
 import { userRouter } from "./routes/userRoutes.js";
+import { recallRequestRouter } from "./routes/recallRequestRoutes.js";
 
 export const app = express();
 
@@ -43,6 +44,7 @@ app.use("/api/:tenantSlug/:locationSlug/encounters", resolveTenant, resolveLocat
 app.use("/api/:tenantSlug/:locationSlug/careplans", resolveTenant, resolveLocation, carePlanRouter);
 app.use("/api/:tenantSlug/:locationSlug/tasks", resolveTenant, resolveLocation, taskRouter);
 app.use("/api/:tenantSlug/:locationSlug/audit-logs", resolveTenant, resolveLocation, auditLogRouter);
+app.use("/api/:tenantSlug/:locationSlug/recall-requests", resolveTenant, resolveLocation, recallRequestRouter);
 app.use("/api/:tenantSlug/:locationSlug", resolveTenant, resolveLocation, directoryRouter);
 
 app.use(notFoundHandler);
