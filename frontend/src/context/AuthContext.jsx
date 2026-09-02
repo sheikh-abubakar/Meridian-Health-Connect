@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { apiRequest } from "@/api/client";
+import { apiRequest, clearApiCache } from "@/api/client";
 import { AuthContext } from "@/context/auth-context";
 
 const storageKey = "meridian-session";
@@ -12,6 +12,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(readStoredSession);
 
   async function login(email, password) {
+    clearApiCache();
     const data = await apiRequest("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
@@ -22,6 +23,7 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
+    clearApiCache();
     sessionStorage.removeItem(storageKey);
     setSession(null);
   }

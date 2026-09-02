@@ -14,5 +14,33 @@
   }
   * { @apply border-border; }
   body { @apply bg-background text-foreground antialiased; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  html { scrollbar-color: #0f766e #e2e8f0; scrollbar-width: thin; }
 }
 
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: #e2e8f0; }
+*::-webkit-scrollbar-thumb { border: 2px solid #e2e8f0; border-radius: 999px; background: #0f766e; }
+*::-webkit-scrollbar-thumb:hover { background: #115e59; }
+
+.sidebar-scrollbar { scrollbar-color: rgba(45, 212, 191, .5) transparent; scrollbar-width: thin; }
+.sidebar-scrollbar::-webkit-scrollbar { width: 5px; }
+.sidebar-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scrollbar::-webkit-scrollbar-thumb { border: 0; background: rgba(45, 212, 191, .45); }
+
+@keyframes password-eye-open {
+  0% { opacity: 0; transform: translateY(3px) scale(.82); }
+  60% { transform: translateY(-2px) scale(1.08); }
+  100% { opacity: 1; transform: translateY(-1px) scale(1); }
+}
+
+@keyframes password-eye-close {
+  0% { opacity: 0; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.password-eye-open { animation: password-eye-open 260ms cubic-bezier(.2,.8,.2,1); }
+.password-eye-closed { animation: password-eye-close 180ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .password-eye-open, .password-eye-closed { animation: none; }
+}
