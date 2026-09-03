@@ -10,11 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/auth-context";
+import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 
 const roleLabels = { admin: "Clinic Admin", frontdesk: "Front-desk", doctor: "Doctor", care_coordinator: "Care Coordinator" };
 const initialForm = { name: "", email: "", password: "", role: "" };
 
 export function StaffPage() {
+  const realtimeRevision = useRealtimeRevision(["staff:created"]);
   const { tenantSlug, locationSlug } = useParams();
   const { session } = useAuth();
   const [staff, setStaff] = useState([]);
@@ -41,7 +43,7 @@ export function StaffPage() {
     }
     loadStaff();
     return () => { active = false; };
-  }, [locationSlug, session.accessToken, tenantSlug]);
+  }, [locationSlug, realtimeRevision, session.accessToken, tenantSlug]);
 
   if (session.user.role !== "admin") return <Navigate to={`/${tenantSlug}/${locationSlug}/dashboard`} replace />;
 

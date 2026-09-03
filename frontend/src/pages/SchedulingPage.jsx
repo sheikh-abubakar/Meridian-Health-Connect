@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/auth-context";
+import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 import { dateKey, dayNames, formatClinicDateTime, formatTime12, isAvailableDateTime } from "@/lib/schedule";
 
 const initialForm = { patientId: "", doctorId: "", visitType: "", scheduledAt: "" };
@@ -38,6 +39,8 @@ export function SchedulingPage({ recallOnly = false }) {
   const [patientQuery, setPatientQuery] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedRecall, setSelectedRecall] = useState(null);
+  const realtimeRevision = useRealtimeRevision(["appointment:created", "appointment:updated", "recallrequest:created", "recallrequest:updated", "staff:created"]);
+  const availabilityRevision = useRealtimeRevision(["availability:updated"]);
   const root = `/${tenantSlug}/${locationSlug}`;
   const headers = useMemo(() => ({ Authorization: `Bearer ${session.accessToken}` }), [session.accessToken]);
 
@@ -52,7 +55,20 @@ export function SchedulingPage({ recallOnly = false }) {
       }).catch((requestError) => { if (active) setError(requestError.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [headers, recallOnly, root]);
+  }, [headers, recallOnly, realtimeRevision, root]);
+
+  useEffect(() => {
+    if (!availabilityRevision || !open || bookingStep !== "appointment" || !form.doctorId) return undefined;
+    let active = true;
+    apiRequest(`${root}/availability/${form.doctorId}`, { headers })
+      .then((data) => {
+        if (!active) return;
+        setAvailability(data.availability.slots);
+        setFormError("");
+      })
+      .catch((requestError) => { if (active) setFormError(requestError.message); });
+    return () => { active = false; };
+  }, [availabilityRevision, bookingStep, form.doctorId, headers, open, root]);
 
   const visibleAppointments = appointments.filter((appointment) => {
     const appointmentDate = appointment.scheduledAt.slice(0, 10);

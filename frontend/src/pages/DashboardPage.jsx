@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/context/auth-context";
 import { dateKey, formatClinicDateTime } from "@/lib/schedule";
 import { MyTasksPage } from "@/pages/MyTasksPage";
+import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 
 const tones = { teal: "bg-teal-50 text-teal-700", blue: "bg-blue-50 text-blue-700", violet: "bg-violet-50 text-violet-700", emerald: "bg-emerald-50 text-emerald-700", amber: "bg-amber-50 text-amber-700" };
 
@@ -21,6 +22,7 @@ function Action({ icon, title, detail, onClick }) {
 }
 
 function RoleDashboard({ role }) {
+  const realtimeRevision = useRealtimeRevision(["patient:created", "appointment:created", "appointment:updated", "encounter:finalized", "careplan:created", "careplan:updated", "task:created", "task:updated", "recallrequest:created", "recallrequest:updated"]);
   const { tenantSlug, locationSlug } = useParams();
   const { session } = useAuth();
   const navigate = useNavigate();
@@ -40,7 +42,7 @@ function RoleDashboard({ role }) {
       setData(role === "doctor" ? { appointments: appointments.appointments, patients: second.patients, recalls: [], carePlans: third.carePlans } : { appointments: appointments.appointments, patients: second.patients, recalls: third.recallRequests, carePlans: [] });
     }).catch((requestError) => { if (active) setError(requestError.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [headers, role, root]);
+  }, [headers, realtimeRevision, role, root]);
 
   const doctor = role === "doctor";
   const today = dateKey();

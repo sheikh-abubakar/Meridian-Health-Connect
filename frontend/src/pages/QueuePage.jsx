@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/auth-context";
+import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 import { formatClinicDateTime } from "@/lib/schedule";
 
 export function QueuePage() {
   const { tenantSlug, locationSlug } = useParams();
   const navigate = useNavigate();
   const { session } = useAuth();
+  const realtimeRevision = useRealtimeRevision(["appointment:created", "appointment:updated", "encounter:finalized"]);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -30,7 +32,7 @@ export function QueuePage() {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [locationSlug, session.accessToken, tenantSlug]);
+  }, [locationSlug, realtimeRevision, session.accessToken, tenantSlug]);
 
   async function startEncounter(appointmentId) {
     setStartingId(appointmentId); setError("");

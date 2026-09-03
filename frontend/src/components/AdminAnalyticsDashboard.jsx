@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/auth-context";
+import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 
 const statDefinitions = [
   { key: "scheduled", label: "Scheduled today", icon: CalendarClock, tone: "bg-blue-50 text-blue-700" },
@@ -35,8 +36,9 @@ function DoctorVolumeChart({ doctors }) {
 }
 
 export function AdminAnalyticsDashboard() {
+  const realtimeRevision = useRealtimeRevision(["patient:created", "appointment:created", "appointment:updated", "encounter:finalized", "staff:created"]);
   const { tenantSlug, locationSlug } = useParams(); const { session } = useAuth(); const [analytics, setAnalytics] = useState(null); const [error, setError] = useState("");
-  useEffect(() => { let active = true; apiRequest(`/${tenantSlug}/${locationSlug}/analytics`, { headers: { Authorization: `Bearer ${session.accessToken}` } }).then((data) => { if (active) setAnalytics(data); }).catch((requestError) => { if (active) setError(requestError.message); }); return () => { active = false; }; }, [locationSlug, session.accessToken, tenantSlug]);
+  useEffect(() => { let active = true; apiRequest(`/${tenantSlug}/${locationSlug}/analytics`, { headers: { Authorization: `Bearer ${session.accessToken}` } }).then((data) => { if (active) setAnalytics(data); }).catch((requestError) => { if (active) setError(requestError.message); }); return () => { active = false; }; }, [locationSlug, realtimeRevision, session.accessToken, tenantSlug]);
   if (error) return <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
   if (!analytics) return <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[1, 2, 3, 4].map((item) => <div key={item} className="h-36 animate-pulse rounded-lg border bg-white" />)}</div>;
   return <><p className="text-sm font-medium text-teal-700">Location intelligence</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">Operational overview</h1><p className="mt-2 text-muted-foreground">Read-only performance, scheduling utilization and clinical activity for this branch.</p>

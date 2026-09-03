@@ -9,12 +9,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/context/auth-context";
+import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 
 export function PatientsPage() {
   const { tenantSlug, locationSlug } = useParams();
   const navigate = useNavigate();
   const { session } = useAuth();
   const [patients, setPatients] = useState([]);
+  const realtimeRevision = useRealtimeRevision(["patient:created"]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
@@ -28,7 +30,7 @@ export function PatientsPage() {
     let active = true;
     apiRequest(basePath, { headers }).then((data) => { if (active) setPatients(data.patients); }).catch((requestError) => { if (active) setError(requestError.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [basePath, headers]);
+  }, [basePath, headers, realtimeRevision]);
 
   function changeOpen(next) { setOpen(next); if (!next) { setStep("search"); setInitialQuery(""); } }
   function view(patient) { changeOpen(false); navigate(profilePath(patient.id)); }

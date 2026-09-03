@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/context/auth-context";
+import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 import { formatClinicDateTime } from "@/lib/schedule";
 
 const day = (value) => new Intl.DateTimeFormat("en-PK", { dateStyle: "medium" }).format(new Date(value));
@@ -23,12 +24,13 @@ function EncounterTimeline({ encounters, onOpen, onExport, exportingId, administ
 }
 
 export function PatientProfilePage() {
+  const realtimeRevision = useRealtimeRevision(["appointment:created", "appointment:updated", "encounter:created", "encounter:updated", "encounter:finalized", "encounter:amended", "careplan:created", "careplan:updated", "task:created", "task:updated"]);
   const { tenantSlug, locationSlug, patientId } = useParams(); const navigate = useNavigate(); const { session } = useAuth();
   const headers = useMemo(() => ({ Authorization: `Bearer ${session.accessToken}` }), [session.accessToken]); const root = `/${tenantSlug}/${locationSlug}`;
   const [record, setRecord] = useState(null); const [carePlans, setCarePlans] = useState([]); const [expanded, setExpanded] = useState(""); const [taskPlan, setTaskPlan] = useState(""); const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportingEncounterId, setExportingEncounterId] = useState("");
-  useEffect(() => { let active = true; Promise.all([apiRequest(`${root}/patients/${patientId}`, { headers }), apiRequest(`${root}/careplans/patient/${patientId}`, { headers })]).then(([patientData, planData]) => { if (active) { setRecord(patientData); setCarePlans(planData.carePlans); } }).catch((requestError) => { if (active) setError(requestError.message); }); return () => { active = false; }; }, [headers, patientId, root]);
+  useEffect(() => { let active = true; Promise.all([apiRequest(`${root}/patients/${patientId}`, { headers }), apiRequest(`${root}/careplans/patient/${patientId}`, { headers })]).then(([patientData, planData]) => { if (active) { setRecord(patientData); setCarePlans(planData.carePlans); } }).catch((requestError) => { if (active) setError(requestError.message); }); return () => { active = false; }; }, [headers, patientId, realtimeRevision, root]);
   if (error) return <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
   if (!record) return <div className="h-64 animate-pulse rounded-xl bg-slate-100" />;
   const { patient, appointments, encounters } = record;

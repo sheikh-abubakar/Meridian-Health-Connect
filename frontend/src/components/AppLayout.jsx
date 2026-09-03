@@ -6,6 +6,7 @@ import { MeridianSidebarBrand, SidebarUserCard } from "@/components/MeridianSide
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { cn } from "@/lib/utils";
+import { useRealtimeStatus } from "@/realtime/realtime-context";
 
 const roleLabels = { admin: "Clinic Admin", frontdesk: "Front-desk Staff", doctor: "Doctor", care_coordinator: "Care Coordinator" };
 
@@ -17,6 +18,7 @@ export function AppLayout() {
   const [location, setLocation] = useState(null);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { status: realtimeStatus } = useRealtimeStatus();
 
   useEffect(() => {
     let active = true;
@@ -65,6 +67,7 @@ export function AppLayout() {
   function signOut() { logout(); navigate("/login", { replace: true }); }
 
   return <div className="min-h-screen min-w-0 overflow-x-hidden bg-slate-50 text-slate-950">
+    <div className="fixed bottom-3 right-3 z-20 flex items-center gap-1.5 rounded-full border bg-white/90 px-2.5 py-1 text-[10px] text-muted-foreground shadow-sm backdrop-blur" title={`Real-time ${realtimeStatus}`}><span className={cn("size-2 rounded-full", realtimeStatus === "connected" ? "bg-emerald-500" : realtimeStatus === "connecting" ? "animate-pulse bg-amber-500" : "bg-red-500")} />Live</div>
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-800 bg-slate-950 text-white md:flex">{sidebar}</aside>
     <button type="button" aria-label="Close navigation" className={cn("fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px] transition-opacity duration-300 md:hidden", mobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0")} onClick={() => setMobileOpen(false)} />
     <aside aria-label="Mobile navigation" className={cn("fixed inset-y-0 left-0 z-50 flex w-[min(82vw,18rem)] flex-col border-r border-slate-800 bg-slate-950 text-white shadow-2xl transition-transform duration-300 ease-out md:hidden", mobileOpen ? "translate-x-0" : "-translate-x-full")}>{sidebar}</aside>

@@ -10,18 +10,20 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/auth-context";
+import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 
 const dateLabel = (value) => new Intl.DateTimeFormat("en-PK", { dateStyle: "medium" }).format(new Date(value));
 const outcomeLabels = { agreed: "Agreed to follow-up", declined: "Declined", unreachable: "Unreachable" };
 
 export function MyTasksPage() {
+  const realtimeRevision = useRealtimeRevision(["task:created", "task:updated"]);
   const { tenantSlug, locationSlug } = useParams(); const { session } = useAuth();
   const navigate = useNavigate();
   const headers = useMemo(() => ({ Authorization: `Bearer ${session.accessToken}` }), [session.accessToken]); const root = `/${tenantSlug}/${locationSlug}`;
   const [tasks, setTasks] = useState([]); const [error, setError] = useState(""); const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState(null); const [outcomeNote, setOutcomeNote] = useState(""); const [completing, setCompleting] = useState(false);
   const [activeOutreachId, setActiveOutreachId] = useState(""); const [outreachForm, setOutreachForm] = useState({ timeframe: "", note: "" }); const [outreachError, setOutreachError] = useState(""); const [recordingId, setRecordingId] = useState("");
-  useEffect(() => { apiRequest(`${root}/tasks?assignedToUserId=me`, { headers }).then((data) => setTasks(data.tasks)).catch((requestError) => setError(requestError.message)).finally(() => setLoading(false)); }, [headers, root]);
+  useEffect(() => { apiRequest(`${root}/tasks?assignedToUserId=me`, { headers }).then((data) => setTasks(data.tasks)).catch((requestError) => setError(requestError.message)).finally(() => setLoading(false)); }, [headers, realtimeRevision, root]);
   function requestComplete(task) { setSelectedTask(task); setOutcomeNote(""); setError(""); }
   async function complete() { setCompleting(true); setError(""); try { const data = await apiRequest(`${root}/tasks/${selectedTask._id}/complete`, { method: "PATCH", headers, body: JSON.stringify({ outcomeNote }) }); setTasks((current) => current.map((task) => task._id === selectedTask._id ? data.task : task)); setSelectedTask(null); setOutcomeNote(""); } catch (requestError) { setError(requestError.message); } finally { setCompleting(false); } }
   function beginAgreed(task) { setActiveOutreachId(task._id); setOutreachForm({ timeframe: "", note: "" }); setOutreachError(""); }
