@@ -87,6 +87,7 @@ export const startEncounter = asyncHandler(async (req, res) => {
 export const getEncounter = asyncHandler(async (req, res) => {
   const encounter = await scopedEncounterQuery(Encounter.findOne(scopedEncounterFilter(req)), req).lean();
   if (!encounter) throw new ApiError(404, "Encounter not found in this location");
+  await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "encounter_record_viewed", targetType: "Encounter", targetId: encounter._id });
   res.json({ success: true, data: { encounter } });
 });
 
@@ -133,6 +134,7 @@ export const generateAiSummary = asyncHandler(async (req, res) => {
   if (encounter.status !== "draft") throw new ApiError(409, "AI summaries can only be generated before encounter finalization");
   if (![encounter.notes.symptoms, encounter.notes.observations, encounter.notes.diagnosis].some((value) => value?.trim())) throw new ApiError(400, "Add clinical notes before generating an AI summary");
   const suggestion = await generateClinicalSummary(encounter.notes);
+  await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "ai_summary_generated", targetType: "Encounter", targetId: encounter._id });
   res.json({ success: true, data: { suggestion } });
 });
 
@@ -183,7 +185,14 @@ export const finalizeEncounter = asyncHandler(async (req, res) => {
         action: "encounter_finalized",
         targetType: "Encounter",
         targetId: encounter._id,
-      }], { session });
+      }, {
+        tenantId: req.tenantId,
+        locationId: req.locationId,
+        actorUserId: req.user._id,
+        action: "appointment_completed",
+        targetType: "Appointment",
+        targetId: appointment._id,
+      }], { session, ordered: true });
     });
   } finally {
     await session.endSession();

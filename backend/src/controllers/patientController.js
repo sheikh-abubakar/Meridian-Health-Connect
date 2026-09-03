@@ -67,6 +67,7 @@ export const getPatient = asyncHandler(async (req, res) => {
     Appointment.find(scope).populate({ path: "doctorId", select: "name", match: { tenantId: req.tenantId, locationId: req.locationId } }).sort({ scheduledAt: -1 }).lean(),
     encounterQuery.lean(),
   ]);
+  await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "patient_record_viewed", targetType: "Patient", targetId: patient._id });
   res.json({ success: true, data: { patient: serializePatient(patient), appointments, encounters } });
 });
 

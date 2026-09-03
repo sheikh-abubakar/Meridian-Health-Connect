@@ -1,4 +1,5 @@
 import { Availability } from "../models/Availability.js";
+import { AuditLog } from "../models/AuditLog.js";
 import { User } from "../models/User.js";
 import { validateAvailabilitySlots } from "../services/availabilityService.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -11,6 +12,8 @@ export const setOwnAvailability = asyncHandler(async (req, res) => {
     { $set: { slots } },
     { upsert: true, new: true, runValidators: true },
   ).lean();
+
+  await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "availability_updated", targetType: "Availability", targetId: availability._id });
 
   res.json({ success: true, data: { availability } });
 });

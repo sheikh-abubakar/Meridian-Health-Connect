@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { Availability } from "../models/Availability.js";
 import { Appointment } from "../models/Appointment.js";
 import { AuditLog } from "../models/AuditLog.js";
 import { CarePlan } from "../models/CarePlan.js";
@@ -10,7 +11,7 @@ import { RecallRequest } from "../models/RecallRequest.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-const models = { User, Patient, Appointment, Encounter, CarePlan, Task, RecallRequest };
+const models = { User, Patient, Appointment, Encounter, CarePlan, Task, RecallRequest, Availability };
 const scope = (req) => ({ tenantId: req.tenantId, locationId: req.locationId });
 
 function targetLabel(type, target) {
@@ -22,6 +23,7 @@ function targetLabel(type, target) {
   if (type === "CarePlan") return `${target.patientId?.name || "Patient"} — ${target.goal}`;
   if (type === "Task") return target.description;
   if (type === "RecallRequest") return `${target.patientId?.name || "Patient"} — recall request`;
+  if (type === "Availability") return `${target.doctorId?.name || "Doctor"} — working hours`;
   return type;
 }
 
@@ -35,6 +37,7 @@ async function resolveTargets(logs, req) {
     let query = Model.find({ _id: { $in: ids }, tenantId: req.tenantId });
     if (type !== "User") query = query.find({ locationId: req.locationId });
     if (["Appointment", "Encounter", "CarePlan", "RecallRequest"].includes(type)) query = query.populate({ path: "patientId", select: "name", match: scope(req) });
+    if (type === "Availability") query = query.populate({ path: "doctorId", select: "name", match: scope(req) });
     const targets = await query.lean();
     for (const target of targets) resolved.set(`${type}:${target._id}`, target);
   }));
