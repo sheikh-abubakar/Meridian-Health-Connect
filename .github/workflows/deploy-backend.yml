@@ -26,8 +26,8 @@ jobs:
       NODE_ENV: test
       TEST_MONGODB_URI: ${{ secrets.TEST_MONGODB_URI }}
       MONGODB_URI: ${{ secrets.TEST_MONGODB_URI }}
-      JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      JWT_SECRET: ci-only-secret-never-used-in-production-2026
+      GROQ_API_KEY: ci-placeholder-not-used-by-acceptance-tests
       CORS_ORIGINS: http://localhost:5173
 
     steps:
@@ -48,6 +48,7 @@ jobs:
         run: npm run check
 
       - name: Run isolated acceptance tests
+        if: env.TEST_MONGODB_URI != ''
         run: npm test
 
       - name: Configure SSH

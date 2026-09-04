@@ -94,9 +94,7 @@ Add these in **GitHub repository → Settings → Secrets and variables → Acti
 | `AWS_KNOWN_HOSTS` | Verified `known_hosts` line for the EC2 host (obtain and verify once; do not blindly trust it during deployment) |
 | `AWS_APP_DIR` | Dedicated absolute folder, e.g. `/home/ubuntu/apps/meridian/backend` |
 | `BACKEND_HEALTH_URL` | `https://YOUR_MERIDIAN_NAME.duckdns.org/api/health` |
-| `TEST_MONGODB_URI` | Dedicated MongoDB Atlas test connection URI; never the production database |
-| `JWT_SECRET` | CI-only long random value |
-| `GROQ_API_KEY` | CI secret required by runtime validation; it is not printed by the workflow |
+| `TEST_MONGODB_URI` | Optional dedicated test MongoDB URI. If omitted, deployment still runs syntax checks but skips DB acceptance tests. Never use the production database here. |
 
 One-time AWS preparation:
 
