@@ -5,7 +5,7 @@ import { clearApiCache } from "@/api/client";
 import { useAuth } from "@/context/auth-context";
 import { RealtimeContext } from "@/realtime/realtime-context";
 
-const SOCKET_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+const SOCKET_URL = (import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "").replace(/\/$/, "");
 export function RealtimeProvider({ children }) {
   const { session } = useAuth(); const { pathname } = useLocation(); const [status, setStatus] = useState("disconnected");
   const locationSlug = pathname.split("/").filter(Boolean)[1] || "";

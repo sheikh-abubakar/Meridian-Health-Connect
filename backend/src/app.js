@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
-import { env } from "./config/env.js";
+import mongoose from "mongoose";
+import { env, isAllowedOrigin } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { resolveLocation } from "./middleware/resolveLocation.js";
 import { resolveTenant } from "./middleware/resolveTenant.js";
@@ -23,11 +24,29 @@ import { recallRequestRouter } from "./routes/recallRequestRoutes.js";
 
 export const app = express();
 
-app.use(cors({ origin: env.frontendUrl }));
+app.disable("x-powered-by");
+if (env.trustProxy) app.set("trust proxy", env.trustProxy);
+app.use(cors({
+  origin(origin, callback) {
+    callback(isAllowedOrigin(origin) ? null : new Error("Origin is not allowed by CORS"), isAllowedOrigin(origin));
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Authorization", "Content-Type"],
+  maxAge: 86400,
+}));
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (env.nodeEnv === "production") res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  next();
+});
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/api/health", (_req, res) => {
-  res.json({ success: true, data: { status: "ok" } });
+  const databaseReady = mongoose.connection.readyState === 1;
+  res.status(databaseReady ? 200 : 503).json({ success: databaseReady, data: { status: databaseReady ? "ready" : "not_ready" } });
 });
 
 app.use("/api/auth", publicAuthRouter);

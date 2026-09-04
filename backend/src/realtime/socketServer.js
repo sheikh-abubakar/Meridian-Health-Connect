@@ -1,13 +1,20 @@
 import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
-import { env } from "../config/env.js";
+import { env, isAllowedOrigin } from "../config/env.js";
 import { Location } from "../models/Location.js";
 import { User } from "../models/User.js";
 
 export const locationRoom = (tenantId, locationId) => `tenant:${tenantId}:location:${locationId}`;
 
 export function createSocketServer(httpServer) {
-  const io = new Server(httpServer, { cors: { origin: env.frontendUrl, credentials: true } });
+  const io = new Server(httpServer, {
+    cors: {
+      origin(origin, callback) {
+        callback(isAllowedOrigin(origin) ? null : new Error("Origin is not allowed by CORS"), isAllowedOrigin(origin));
+      },
+      methods: ["GET", "POST"],
+    },
+  });
   io.use(async (socket, next) => {
     try {
       const payload = jwt.verify(String(socket.handshake.auth?.token || ""), env.jwtSecret);

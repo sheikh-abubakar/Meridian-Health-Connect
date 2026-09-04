@@ -11,6 +11,10 @@ Step 1 provides the tenant-aware Express/MongoDB foundation and a working React 
 5. In separate terminals, run `npm run dev:backend` and `npm run dev:frontend`.
 6. Open `http://localhost:5173/login`. An Admin is redirected to `/:tenantSlug/overview`; branch staff are redirected to `/:tenantSlug/:locationSlug/dashboard`.
 
+## Production deployment
+
+The frontend is prepared for Vercel and the persistent Socket.IO backend for AWS/DuckDNS. Follow [DEPLOYMENT.md](./DEPLOYMENT.md) for the exact environment variables, Vercel project settings, AWS process configuration, HTTPS reverse proxy, and post-deployment checks.
+
 Seeded admin emails are `admin@citycare.test` and `admin@greenvalley.test`. Their password is the local `SEED_ADMIN_PASSWORD` value.
 
 ## Implemented API
