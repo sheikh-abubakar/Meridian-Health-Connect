@@ -19,7 +19,7 @@ export function ResourcesPage() {
   const headers = useMemo(() => ({ Authorization: `Bearer ${session.accessToken}` }), [session.accessToken]);
   const revision = useRealtimeRevision(["resource:created", "resource:updated", "specialty:created", "visittype:created"]);
   const [resources, setResources] = useState([]); const [specialties, setSpecialties] = useState([]); const [visitTypes, setVisitTypes] = useState([]);
-  const [settings, setSettings] = useState({ maxOverbookSlotsPerDoctorPerDay: 0, reminderHours: 12 });
+  const [settings, setSettings] = useState({ maxOverbookSlotsPerDoctorPerDay: 0, reminderHours: 5 / 60 });
   const [resource, setResource] = useState({ name: "", type: "room" }); const [specialtyName, setSpecialtyName] = useState(""); const [visit, setVisit] = useState(newVisit());
   const [resourceOpen, setResourceOpen] = useState(false); const [specialtyOpen, setSpecialtyOpen] = useState(false); const [visitOpen, setVisitOpen] = useState(false); const [notice, setNotice] = useState(""); const [error, setError] = useState("");
   useEffect(() => { Promise.all([apiRequest(`${root}/resources`, { headers }), apiRequest(`${root}/resources/specialties`, { headers }), apiRequest(`${root}/resources/visit-types`, { headers }), apiRequest(`${root}/context`, { headers })]).then(([r, s, v, c]) => { setResources(r.resources); setSpecialties(s.specialties); setVisitTypes(v.visitTypes); const setting = c.location.schedulingSettings || {}; setSettings({ maxOverbookSlotsPerDoctorPerDay: setting.maxOverbookSlotsPerDoctorPerDay || 0, reminderHours: setting.reminderRules?.find((rule) => rule.channel === "sms")?.offsetHours ?? 12 }); }).catch((e) => setError(e.message)); }, [headers, revision, root]);

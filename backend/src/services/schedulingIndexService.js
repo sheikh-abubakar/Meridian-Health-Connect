@@ -14,11 +14,14 @@ export async function ensureSchedulingIndexes() {
     console.log("Replaced legacy unique appointment index with audited-overbook index");
   }
 
-  // Convert only the old POC default (SMS 48h plus simulated email 24h).
+  // Convert only legacy defaults used during the POC / SMS test rollout.
   // Deliberately leave branch-specific reminder policies untouched.
   const legacyDefaults = await Location.updateMany(
-    { "schedulingSettings.reminderRules": [{ channel: "sms", offsetHours: 48 }, { channel: "email", offsetHours: 24 }] },
-    { $set: { "schedulingSettings.reminderRules": [{ channel: "sms", offsetHours: 12 }] } },
+    { $or: [
+      { "schedulingSettings.reminderRules": [{ channel: "sms", offsetHours: 48 }, { channel: "email", offsetHours: 24 }] },
+      { "schedulingSettings.reminderRules": [{ channel: "sms", offsetHours: 12 }] },
+    ] },
+    { $set: { "schedulingSettings.reminderRules": [{ channel: "sms", offsetHours: 5 / 60 }] } },
   );
-  if (legacyDefaults.modifiedCount) console.log(`Updated ${legacyDefaults.modifiedCount} legacy reminder policy/policies to SMS 12-hour default`);
+  if (legacyDefaults.modifiedCount) console.log(`Updated ${legacyDefaults.modifiedCount} legacy reminder policy/policies to SMS 5-minute test default`);
 }
