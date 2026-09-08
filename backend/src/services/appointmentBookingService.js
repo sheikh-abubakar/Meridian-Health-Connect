@@ -69,8 +69,9 @@ export async function bookAppointment({ tenantId, locationId, actorUserId, paylo
   await appointment.save({ session: session || undefined });
   const audits = [{ tenantId, locationId, actorUserId, action: "appointment_booked", targetType: "Appointment", targetId: appointment._id }];
   if (conflictTypes.length) audits.push({ tenantId, locationId, actorUserId, action: "appointment_override_recorded", targetType: "Appointment", targetId: appointment._id });
-  const rules = location?.schedulingSettings?.reminderRules || [];
-  const reminders = rules.map((rule) => ({ tenantId, locationId, appointmentId: appointment._id, patientId: patient._id, channel: rule.channel, scheduledFor: new Date(scheduledAt.getTime() - rule.offsetHours * 60 * 60 * 1000), status: patient.communicationPreferences?.[`${rule.channel}OptOut`] ? "skipped_opt_out" : "scheduled", detail: patient.communicationPreferences?.[`${rule.channel}OptOut`] ? `Patient opted out of ${rule.channel} reminders.` : `Simulated ${rule.channel} reminder scheduled.` }));
+  // Voice and email remain future integrations. Only an explicit SMS rule creates a real reminder.
+  const rules = (location?.schedulingSettings?.reminderRules || []).filter((rule) => rule.channel === "sms");
+  const reminders = rules.map((rule) => ({ tenantId, locationId, appointmentId: appointment._id, patientId: patient._id, actorUserId, channel: rule.channel, scheduledFor: new Date(scheduledAt.getTime() - rule.offsetHours * 60 * 60 * 1000), status: patient.communicationPreferences?.smsOptOut ? "skipped_opt_out" : "scheduled", detail: patient.communicationPreferences?.smsOptOut ? "Patient opted out of SMS reminders." : "SMS reminder scheduled." }));
   if (reminders.length) await Reminder.insertMany(reminders, { session: session || undefined, ordered: true });
   if (reminders.length) audits.push({ tenantId, locationId, actorUserId, action: "reminders_scheduled", targetType: "Appointment", targetId: appointment._id });
   if (session) await AuditLog.create(audits, { session, ordered: true });

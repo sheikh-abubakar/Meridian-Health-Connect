@@ -19,6 +19,12 @@ export const env = {
   trustProxy: process.env.TRUST_PROXY === "true" ? 1 : false,
   seedAdminPassword: process.env.SEED_ADMIN_PASSWORD || "ChangeMe123!",
   groqApiKey: process.env.GROQ_API_KEY,
+  moceanApiToken: process.env.MOCEAN_API_TOKEN,
+  moceanSmsFrom: process.env.MOCEAN_SMS_FROM || "Meridian Health",
+  moceanSmsEnabled: process.env.MOCEAN_SMS_ENABLED === "true",
+  moceanDefaultCountryCode: String(process.env.MOCEAN_DEFAULT_COUNTRY_CODE || "92").replace(/\D/g, ""),
+  moceanDlrWebhookSecret: process.env.MOCEAN_DLR_WEBHOOK_SECRET,
+  moceanDlrPublicUrl: String(process.env.MOCEAN_DLR_PUBLIC_URL || "").replace(/\/$/, ""),
 };
 
 export function validateRuntimeEnv() {
@@ -28,6 +34,12 @@ export function validateRuntimeEnv() {
   if (!env.groqApiKey) missing.push("GROQ_API_KEY");
   if (!Number.isInteger(env.port) || env.port < 1 || env.port > 65535) missing.push("valid PORT");
   if (!env.frontendOrigins.length) missing.push("CORS_ORIGINS or FRONTEND_URL");
+  if (env.moceanSmsEnabled) {
+    if (!env.moceanApiToken) missing.push("MOCEAN_API_TOKEN");
+    if (!env.moceanSmsFrom) missing.push("MOCEAN_SMS_FROM");
+    if (!env.moceanDlrWebhookSecret) missing.push("MOCEAN_DLR_WEBHOOK_SECRET");
+    if (!env.moceanDlrPublicUrl.startsWith("https://")) missing.push("valid HTTPS MOCEAN_DLR_PUBLIC_URL");
+  }
 
   if (missing.length) {
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);

@@ -24,6 +24,7 @@ import { recallRequestRouter } from "./routes/recallRequestRoutes.js";
 import { resourceRouter } from "./routes/resourceRoutes.js";
 import { waitlistRouter } from "./routes/waitlistRoutes.js";
 import { reminderRouter } from "./routes/reminderRoutes.js";
+import { receiveMoceanDeliveryReceipt } from "./controllers/moceanWebhookController.js";
 
 export const app = express();
 
@@ -46,6 +47,10 @@ app.use((_req, res, next) => {
   next();
 });
 app.use(express.json({ limit: "1mb" }));
+
+// Public provider callback. It is authenticated by the unguessable per-environment URL secret,
+// not by a staff JWT. Mocean sends delivery receipts as form-encoded PUT requests.
+app.put("/api/webhooks/mocean/sms-dlr/:secret", express.urlencoded({ extended: false, limit: "32kb" }), receiveMoceanDeliveryReceipt);
 
 app.get("/api/health", (_req, res) => {
   const databaseReady = mongoose.connection.readyState === 1;

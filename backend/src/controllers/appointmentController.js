@@ -87,7 +87,7 @@ export const cancelAppointment = asyncHandler(async (req, res) => {
   if (!["scheduled", "checked_in"].includes(appointment.status)) throw new ApiError(409, `Cannot cancel an appointment with status ${appointment.status}`);
   appointment.status = "cancelled"; appointment.cancellationReason = reason; appointment.cancelledAt = new Date();
   await appointment.save();
-  await Reminder.updateMany({ tenantId: req.tenantId, locationId: req.locationId, appointmentId: appointment._id, status: "scheduled" }, { $set: { status: "cancelled", detail: "Reminder cancelled because appointment was cancelled." } });
+  await Reminder.updateMany({ tenantId: req.tenantId, locationId: req.locationId, appointmentId: appointment._id, status: "scheduled" }, { $set: { status: "cancelled", detail: "SMS reminder cancelled because appointment was cancelled." } });
   const waitlistCount = await Waitlist.countDocuments({ tenantId: req.tenantId, locationId: req.locationId, doctorId: appointment.doctorId });
   await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "appointment_cancelled", targetType: "Appointment", targetId: appointment._id });
   const populated = await scopedPopulate(Appointment.findOne({ _id: appointment._id, tenantId: req.tenantId, locationId: req.locationId }), req).lean();
@@ -100,7 +100,7 @@ export const markNoShow = asyncHandler(async (req, res) => {
   if (appointment.status !== "scheduled") throw new ApiError(409, `Cannot mark an appointment with status ${appointment.status} as no-show`);
   if (appointment.scheduledAt > new Date()) throw new ApiError(400, "An appointment can only be marked no-show after its scheduled time");
   appointment.status = "no_show"; appointment.noShowAt = new Date(); await appointment.save();
-  await Reminder.updateMany({ tenantId: req.tenantId, locationId: req.locationId, appointmentId: appointment._id, status: "scheduled" }, { $set: { status: "cancelled", detail: "Reminder cancelled because appointment was marked no-show." } });
+  await Reminder.updateMany({ tenantId: req.tenantId, locationId: req.locationId, appointmentId: appointment._id, status: "scheduled" }, { $set: { status: "cancelled", detail: "SMS reminder cancelled because appointment was marked no-show." } });
   await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "appointment_no_show", targetType: "Appointment", targetId: appointment._id });
   const populated = await scopedPopulate(Appointment.findOne({ _id: appointment._id, tenantId: req.tenantId, locationId: req.locationId }), req).lean();
   res.json({ success: true, data: { appointment: populated } });

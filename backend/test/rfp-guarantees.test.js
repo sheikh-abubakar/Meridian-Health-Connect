@@ -254,7 +254,7 @@ test("care plan updates require a reason and append version history", async () =
   assert.equal(updated.body.data.carePlan.history[1].reason, "Clinical progress");
 });
 
-test("Phase 1 scheduling records cancellations, no-shows, waitlist entries, resources, and simulated reminders", async () => {
+test("Phase 1 scheduling records cancellations, no-shows, waitlist entries, resources, and SMS reminders", async () => {
   const f = fixtures;
   const past = await Appointment.create({ tenantId: f.city._id, locationId: f.gulberg._id, patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, visitType: "Past visit", scheduledAt: new Date("2020-01-01T10:00:00Z"), eligibilityStatus: "verified", createdBy: f.cityFrontdesk._id });
   const noShow = await request(`/city-care/gulberg/appointments/${past._id}/no-show`, { user: f.cityFrontdesk, tenant: f.city, method: "PATCH" });
@@ -268,7 +268,7 @@ test("Phase 1 scheduling records cancellations, no-shows, waitlist entries, reso
   assert.equal(waiting.status, 201); assert.equal(String(waiting.body.data.entry.locationId), String(f.gulberg._id)); assert.equal(await Waitlist.countDocuments({ locationId: f.gulberg._id }), 1);
   await Availability.findOneAndUpdate({ tenantId: f.city._id, locationId: f.gulberg._id, doctorId: f.cityDoctor._id }, { $set: { slots: [{ dayOfWeek: 3, startTime: "00:00", endTime: "23:59" }] } }, { upsert: true });
   const reminderBooking = await request("/city-care/gulberg/appointments", { user: f.cityFrontdesk, tenant: f.city, method: "POST", body: { patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, visitType: "Reminder verification", scheduledAt: "2032-01-07T10:00" } });
-  assert.equal(reminderBooking.status, 201); assert.equal(await Reminder.countDocuments({ appointmentId: reminderBooking.body.data.appointment._id, status: { $in: ["scheduled", "skipped_opt_out"] } }), 2);
+  assert.equal(reminderBooking.status, 201); assert.equal(await Reminder.countDocuments({ appointmentId: reminderBooking.body.data.appointment._id, status: { $in: ["scheduled", "skipped_opt_out"] } }), 1);
   assert.equal(await AuditLog.countDocuments({ action: "appointment_no_show", targetId: past._id }), 1); assert.equal(await AuditLog.countDocuments({ action: "appointment_cancelled", targetId: upcoming._id }), 1); assert.equal(await AuditLog.countDocuments({ action: "resource_created" }), 1);
 });
 

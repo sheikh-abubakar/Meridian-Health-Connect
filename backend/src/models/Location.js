@@ -21,7 +21,7 @@ const locationSchema = new mongoose.Schema(
       maxOverbookSlotsPerDoctorPerDay: { type: Number, default: 0, min: 0, max: 20 },
       reminderRules: {
         type: [{ channel: { type: String, enum: ["sms", "email", "voice"], required: true }, offsetHours: { type: Number, required: true, min: 0, max: 8760 } }],
-        default: () => [{ channel: "sms", offsetHours: 48 }, { channel: "email", offsetHours: 24 }],
+        default: () => [{ channel: "sms", offsetHours: 12 }],
       },
     },
   },
