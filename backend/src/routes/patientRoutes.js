@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createPatient, getPatient, listPatients, searchPatients } from "../controllers/patientController.js";
+import { createPatient, getPatient, listPatients, searchPatients, updateCommunicationPreferences } from "../controllers/patientController.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeLocationAccess } from "../middleware/authorizeLocationAccess.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
@@ -12,3 +12,4 @@ patientRouter.get("/search", authorizeRoles("frontdesk"), searchPatients);
 patientRouter.get("/:id/export", authorizeRoles("frontdesk", "admin"), exportPatientVisitHistory);
 patientRouter.get("/:id", authorizeRoles("frontdesk", "doctor", "care_coordinator"), getPatient);
 patientRouter.post("/", authorizeRoles("frontdesk"), createPatient);
+patientRouter.patch("/:id/communication-preferences", authorizeRoles("frontdesk"), updateCommunicationPreferences);

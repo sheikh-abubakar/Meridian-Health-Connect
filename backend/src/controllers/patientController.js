@@ -14,6 +14,7 @@ function serializePatient(patient) {
     address: patient.address,
     insuranceProvider: patient.insuranceInfo?.provider || "",
     policyNumber: patient.insuranceInfo?.policyNumber || "",
+    communicationPreferences: patient.communicationPreferences || { smsOptOut: false, emailOptOut: false, voiceOptOut: false },
     createdAt: patient.createdAt,
   };
 }
@@ -63,12 +64,21 @@ export const getPatient = asyncHandler(async (req, res) => {
   if (req.user.role === "frontdesk") {
     encounterQuery.select("doctorId appointmentId status createdAt finalizedAt");
   }
-  const [appointments, encounters] = await Promise.all([
+  const [appointments, encounters, noShowCount] = await Promise.all([
     Appointment.find(scope).populate({ path: "doctorId", select: "name", match: { tenantId: req.tenantId, locationId: req.locationId } }).sort({ scheduledAt: -1 }).lean(),
     encounterQuery.lean(),
+    Appointment.countDocuments({ ...scope, status: "no_show" }),
   ]);
   await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "patient_record_viewed", targetType: "Patient", targetId: patient._id });
-  res.json({ success: true, data: { patient: serializePatient(patient), appointments, encounters } });
+  res.json({ success: true, data: { patient: { ...serializePatient(patient), noShowCount }, appointments, encounters } });
+});
+
+export const updateCommunicationPreferences = asyncHandler(async (req, res) => {
+  const preferences = { smsOptOut: Boolean(req.body.smsOptOut), emailOptOut: Boolean(req.body.emailOptOut), voiceOptOut: Boolean(req.body.voiceOptOut) };
+  const patient = await Patient.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenantId, locationId: req.locationId }, { $set: { communicationPreferences: preferences } }, { new: true }).lean();
+  if (!patient) throw new ApiError(404, "Patient not found in this location");
+  await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "patient_communication_preferences_updated", targetType: "Patient", targetId: patient._id });
+  res.json({ success: true, data: { patient: serializePatient(patient) } });
 });
 
 export const createPatient = asyncHandler(async (req, res) => {

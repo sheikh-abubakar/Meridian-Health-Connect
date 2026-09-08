@@ -56,3 +56,10 @@ export function isWithinAvailability(slots, dayOfWeek, time) {
   ));
 }
 
+export function isRangeWithinAvailability(slots, dayOfWeek, startTime, durationMinutes) {
+  const [hours, minutes] = startTime.split(":").map(Number);
+  const endMinutes = (hours * 60) + minutes + Number(durationMinutes);
+  if (endMinutes > 24 * 60) return false;
+  const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
+  return slots.some((slot) => slot.dayOfWeek === dayOfWeek && startTime >= slot.startTime && endTime <= slot.endTime);
+}

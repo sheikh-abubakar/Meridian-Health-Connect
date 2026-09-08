@@ -17,6 +17,13 @@ const locationSchema = new mongoose.Schema(
       match: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
     },
     address: { type: String, required: true, trim: true },
+    schedulingSettings: {
+      maxOverbookSlotsPerDoctorPerDay: { type: Number, default: 0, min: 0, max: 20 },
+      reminderRules: {
+        type: [{ channel: { type: String, enum: ["sms", "email", "voice"], required: true }, offsetHours: { type: Number, required: true, min: 0, max: 8760 } }],
+        default: () => [{ channel: "sms", offsetHours: 48 }, { channel: "email", offsetHours: 24 }],
+      },
+    },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

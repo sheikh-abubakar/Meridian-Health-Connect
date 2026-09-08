@@ -1,5 +1,5 @@
 import { createElement, useEffect, useState } from "react";
-import { ArrowLeft, CalendarDays, ClipboardCheck, ClipboardClock, HeartHandshake, LayoutDashboard, LogOut, MapPin, PhoneCall, ScrollText, Stethoscope, UserCircle, UserRound, Users } from "lucide-react";
+import { ArrowLeft, Boxes, CalendarDays, ClipboardCheck, ClipboardClock, HeartHandshake, LayoutDashboard, LogOut, MapPin, PhoneCall, ScrollText, Stethoscope, UserCircle, UserRound, Users } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest, prefetchApi } from "@/api/client";
 import { MeridianSidebarBrand, SidebarUserCard } from "@/components/MeridianSidebarBrand";
@@ -27,7 +27,7 @@ export function AppLayout() {
     apiRequest(`${root}/context`, { headers }).then((data) => {
       if (active) setLocation(data.location);
       const paths = {
-        admin: [`${root}/analytics`, `${root}/users`, `${root}/audit-logs`],
+        admin: [`${root}/analytics`, `${root}/users`, `${root}/resources`, `${root}/audit-logs`],
         frontdesk: [`${root}/patients`, `${root}/appointments`, `${root}/doctors`, `${root}/recall-requests?status=pending_scheduling`],
         doctor: [`${root}/availability/${session.user.id}`, `${root}/appointments?status=checked_in`, `${root}/my-patients`, `${root}/careplans?owningCareTeamMemberId=me`],
         care_coordinator: [`${root}/tasks?assignedToUserId=me`, `${root}/careplans?owningCareTeamMemberId=me`],
@@ -51,6 +51,7 @@ export function AppLayout() {
   const navigation = [
     ["Dashboard", "Workspace", `${root}/dashboard`, LayoutDashboard, true],
     ["Staff", "Management", `${root}/staff`, Users, session.user.role === "admin"],
+    ["Scheduling Setup", "Management", `${root}/resources`, Boxes, session.user.role === "admin"],
     ["Audit Log", "Management", `${root}/audit-log`, ScrollText, session.user.role === "admin"],
     ["Patients", "Operations", `${root}/patients`, UserRound, session.user.role === "frontdesk"],
     ["Scheduling", "Operations", `${root}/scheduling`, CalendarDays, session.user.role === "frontdesk"],

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, Plus, Stethoscope, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, BellRing, CalendarDays, CheckCircle2, Clock3, ListPlus, Plus, Stethoscope, Trash2 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { apiRequest } from "@/api/client";
 import { PatientCreateForm } from "@/components/PatientCreateForm";
 import { PatientSearchStep } from "@/components/PatientSearchStep";
-import { RecallRequestsPanel } from "@/components/RecallRequestsPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,139 +16,58 @@ import { useAuth } from "@/context/auth-context";
 import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 import { dateKey, dayNames, formatClinicDateTime, formatTime12, isAvailableDateTime } from "@/lib/schedule";
 
-const initialForm = { patientId: "", doctorId: "", visitType: "", scheduledAt: "" };
-const filters = [{ value: "all", label: "All appointments" }, { value: "today", label: "Today" }, { value: "upcoming", label: "Upcoming" }];
+const blank = { patientId: "", visitTypeId: "", doctorId: "", resourceId: "none", scheduledAt: "", overrideReason: "" };
+const stale = (value) => !value || Date.now() - new Date(value).getTime() > 72 * 60 * 60 * 1000;
+function AvailabilitySummary({ slots }) {
+  if (!slots.length) return <p className="mt-2 text-xs text-amber-700">This Doctor has not published availability yet.</p>;
+  return <div className="mt-3 rounded-md border bg-slate-50 p-3 text-xs text-slate-700"><p className="flex items-center gap-2 font-semibold"><Clock3 className="size-4 text-teal-700" /> Doctor availability</p><div className="mt-2 grid gap-1 sm:grid-cols-2">{slots.map((slot) => <span key={`${slot.dayOfWeek}-${slot.startTime}`}>{dayNames[slot.dayOfWeek]}: {formatTime12(slot.startTime)}–{formatTime12(slot.endTime)}</span>)}</div></div>;
+}
 
-export function SchedulingPage({ recallOnly = false }) {
-  const { tenantSlug, locationSlug } = useParams();
-  const { session } = useAuth();
-  const [appointments, setAppointments] = useState([]);
-  const [doctors, setDoctors] = useState([]);
-  const [recallRequests, setRecallRequests] = useState([]);
-  const [availability, setAvailability] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [scheduleFilter, setScheduleFilter] = useState("all");
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(initialForm);
-  const [formError, setFormError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [bookingStep, setBookingStep] = useState("patient-search");
-  const [patientQuery, setPatientQuery] = useState("");
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [selectedRecall, setSelectedRecall] = useState(null);
-  const realtimeRevision = useRealtimeRevision(["appointment:created", "appointment:updated", "recallrequest:created", "recallrequest:updated", "staff:created"]);
-  const availabilityRevision = useRealtimeRevision(["availability:updated"]);
-  const root = `/${tenantSlug}/${locationSlug}`;
-  const headers = useMemo(() => ({ Authorization: `Bearer ${session.accessToken}` }), [session.accessToken]);
-
+export function SchedulingPage() {
+  const { tenantSlug, locationSlug } = useParams(); const { session } = useAuth(); const root = `/${tenantSlug}/${locationSlug}`; const headers = useMemo(() => ({ Authorization: `Bearer ${session.accessToken}` }), [session.accessToken]);
+  const revision = useRealtimeRevision(["appointment:created", "appointment:updated", "staff:created", "staff:updated", "availability:updated", "resource:created", "visittype:created", "waitlist:created", "waitlist:removed", "reminder:created", "reminder:updated"]);
+  const [appointments, setAppointments] = useState([]), [doctors, setDoctors] = useState([]), [resources, setResources] = useState([]), [visitTypes, setVisitTypes] = useState([]), [waitlist, setWaitlist] = useState([]), [reminders, setReminders] = useState([]), [availability, setAvailability] = useState([]);
+  const [bookingOpen, setBookingOpen] = useState(false), [waitOpen, setWaitOpen] = useState(false), [step, setStep] = useState("search"), [booking, setBooking] = useState(blank), [selectedDoctorId, setSelectedDoctorId] = useState(""), [patient, setPatient] = useState(null), [waitPatient, setWaitPatient] = useState(null), [waitDoctor, setWaitDoctor] = useState(""), [waitNote, setWaitNote] = useState(""), [scheduledWaitId, setScheduledWaitId] = useState("");
+  const [error, setError] = useState(""), [notice, setNotice] = useState(""), [query, setQuery] = useState(""), [loading, setLoading] = useState(true), [, tick] = useState(Date.now());
+  useEffect(() => { let live = true; Promise.all([apiRequest(`${root}/appointments`, { headers }), apiRequest(`${root}/doctors`, { headers }), apiRequest(`${root}/resources`, { headers }), apiRequest(`${root}/resources/visit-types`, { headers }), apiRequest(`${root}/waitlist`, { headers }), apiRequest(`${root}/reminders`, { headers })]).then(([a, d, r, v, w, m]) => { if (!live) return; setAppointments(a.appointments); setDoctors(d.doctors); setResources(r.resources); setVisitTypes(v.visitTypes); setWaitlist(w.waitlist); setReminders(m.reminders); }).catch((requestError) => live && setError(requestError.message)).finally(() => live && setLoading(false)); return () => { live = false; }; }, [headers, revision, root]);
+  useEffect(() => { const timer = window.setInterval(() => tick(Date.now()), 10_000); return () => window.clearInterval(timer); }, []);
   useEffect(() => {
-    let active = true;
-    Promise.all([apiRequest(`${root}/appointments`, { headers }), apiRequest(`${root}/doctors`, { headers }), recallOnly ? apiRequest(`${root}/recall-requests?status=pending_scheduling`, { headers }) : Promise.resolve({ recallRequests: [] })])
-      .then(([appointmentData, doctorData, recallData]) => {
-        if (!active) return;
-        setAppointments(appointmentData.appointments);
-        setDoctors(doctorData.doctors);
-        setRecallRequests(recallData.recallRequests);
-      }).catch((requestError) => { if (active) setError(requestError.message); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [headers, recallOnly, realtimeRevision, root]);
-
-  useEffect(() => {
-    if (!availabilityRevision || !open || bookingStep !== "appointment" || !form.doctorId) return undefined;
-    let active = true;
-    apiRequest(`${root}/availability/${form.doctorId}`, { headers })
-      .then((data) => {
-        if (!active) return;
-        setAvailability(data.availability.slots);
-        setFormError("");
-      })
-      .catch((requestError) => { if (active) setFormError(requestError.message); });
-    return () => { active = false; };
-  }, [availabilityRevision, bookingStep, form.doctorId, headers, open, root]);
-
-  const visibleAppointments = appointments.filter((appointment) => {
-    const appointmentDate = appointment.scheduledAt.slice(0, 10);
-    if (scheduleFilter === "today") return appointmentDate === dateKey();
-    if (scheduleFilter === "upcoming") return appointmentDate >= dateKey();
-    return true;
-  });
-  const validSelection = form.scheduledAt && isAvailableDateTime(form.scheduledAt, availability);
-
-  function update(field, value) { setForm((current) => ({ ...current, [field]: value })); setFormError(""); }
-  async function selectDoctor(doctorId) {
-    update("doctorId", doctorId); update("scheduledAt", ""); setAvailability([]);
-    try { const data = await apiRequest(`${root}/availability/${doctorId}`, { headers }); setAvailability(data.availability.slots); }
-    catch (requestError) { setFormError(requestError.message); }
-  }
-  function changeOpen(next) {
-    setOpen(next);
-    if (!next) { setForm(initialForm); setAvailability([]); setFormError(""); setBookingStep("patient-search"); setPatientQuery(""); setSelectedPatient(null); setSelectedRecall(null); }
-  }
-  function choosePatient(patient) { setSelectedPatient(patient); update("patientId", patient.id); setBookingStep("appointment"); }
-  function patientCreated(patient) { choosePatient(patient); }
-  async function chooseRecall(recall) {
-    const patient = recall.patientId; const doctor = recall.doctorId;
-    setSelectedRecall(recall); setSelectedPatient({ id: patient._id, name: patient.name, phone: patient.contact?.phone || "" });
-    setForm({ patientId: patient._id, doctorId: doctor._id, visitType: "Follow-up consultation", scheduledAt: "" });
-    setBookingStep("appointment"); setAvailability([]); setFormError(""); setOpen(true);
-    try { const data = await apiRequest(`${root}/availability/${doctor._id}`, { headers }); setAvailability(data.availability.slots); }
-    catch (requestError) { setFormError(requestError.message); }
-  }
-  async function book(event) {
-    event.preventDefault();
-    if (!validSelection) { setFormError("Choose a date and time within the doctor's displayed availability."); return; }
-    setSubmitting(true); setFormError("");
-    try {
-      const endpoint = selectedRecall ? `${root}/recall-requests/${selectedRecall._id}/schedule` : `${root}/appointments`;
-      const data = await apiRequest(endpoint, { method: "POST", headers, body: JSON.stringify(form) });
-      setAppointments((current) => [...current, data.appointment].sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt)));
-      setScheduleFilter("all");
-      setNotice(`Appointment booked for ${formatClinicDateTime(data.appointment.scheduledAt)}.`);
-      if (selectedRecall) setRecallRequests((current) => current.filter((item) => item._id !== selectedRecall._id));
-      changeOpen(false);
-    } catch (requestError) { setFormError(requestError.message); }
-    finally { setSubmitting(false); }
-  }
-  async function checkIn(id) {
-    try {
-      const data = await apiRequest(`${root}/appointments/${id}/check-in`, { method: "PATCH", headers });
-      setAppointments((current) => current.map((item) => item._id === id ? data.appointment : item));
-    } catch (requestError) { setError(requestError.message); }
-  }
-
-  return <>
-    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-      <div><p className="text-sm font-medium text-teal-700">Front-desk operations</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">{recallOnly ? "Recall requests" : "Scheduling"}</h1><p className="mt-2 text-muted-foreground">{recallOnly ? "Turn coordinator follow-up handoffs into confirmed appointments." : "View today and upcoming appointments, eligibility, and check-in status."}</p></div>
-      <Dialog open={open} onOpenChange={changeOpen}>
-        {!recallOnly && <DialogTrigger asChild><Button className="bg-teal-700 hover:bg-teal-800"><Plus className="mr-2 size-4" /> Book Appointment</Button></DialogTrigger>}
-        <DialogContent><DialogHeader><DialogTitle>{selectedRecall ? "Schedule recalled patient" : bookingStep === "patient-search" ? "Find patient" : bookingStep === "patient-create" ? "Register and book" : "Book appointment"}</DialogTitle><DialogDescription>{selectedRecall ? "Patient and Doctor come from the coordinator handoff. Select a valid date and time to confirm the appointment." : bookingStep === "patient-search" ? "Search for the existing patient record before booking." : bookingStep === "patient-create" ? "Create a new branch patient, then continue with scheduling." : "Book this visit against the selected patient's existing history."}</DialogDescription></DialogHeader>
-          {bookingStep === "patient-search" && <PatientSearchStep basePath={`${root}/patients`} headers={headers} onSelect={choosePatient} onCreate={(query) => { setPatientQuery(query); setBookingStep("patient-create"); }} />}
-          {bookingStep === "patient-create" && <PatientCreateForm basePath={`${root}/patients`} headers={headers} initialQuery={patientQuery} onBack={() => setBookingStep("patient-search")} onCreated={patientCreated} onViewExisting={choosePatient} />}
-          {bookingStep === "appointment" && <form className="space-y-5" onSubmit={book}>
-            <div className="flex items-center justify-between rounded-lg border border-teal-200 bg-teal-50 p-3"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-full bg-white text-teal-700"><UserRoundCheck className="size-4" /></span><div><p className="text-sm font-semibold text-teal-950">{selectedPatient?.name}</p><p className="text-xs text-teal-800">{selectedPatient?.phone}</p></div></div>{!selectedRecall && <Button type="button" size="sm" variant="ghost" onClick={() => { setBookingStep("patient-search"); setSelectedPatient(null); update("patientId", ""); }}><ArrowLeft className="mr-1 size-3.5" /> Change</Button>}</div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2"><Label>Doctor</Label>{selectedRecall ? <div className="flex h-10 items-center gap-2 rounded-md border bg-slate-50 px-3 text-sm font-medium"><Stethoscope className="size-4 text-teal-700" />{selectedRecall.doctorId?.name}</div> : <Select value={form.doctorId} onValueChange={selectDoctor}><SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger><SelectContent>{doctors.map((doctor) => <SelectItem key={doctor.id} value={doctor.id}>{doctor.name}</SelectItem>)}</SelectContent></Select>}</div>
-              <div className="space-y-2 sm:col-span-2"><Label htmlFor="visit-type">Visit type</Label><Input id="visit-type" placeholder="e.g. General consultation" value={form.visitType} onChange={(event) => update("visitType", event.target.value)} required /></div>
-              <div className="space-y-2 sm:col-span-2"><Label htmlFor="scheduled-at">Date and time</Label><Input id="scheduled-at" type="datetime-local" min={`${dateKey()}T00:00`} value={form.scheduledAt} onChange={(event) => update("scheduledAt", event.target.value)} disabled={!form.doctorId} required />{form.scheduledAt && <p className={`text-xs ${validSelection ? "text-emerald-700" : "text-red-600"}`}>{validSelection ? "This time is within the doctor's availability." : "This time falls outside the doctor's availability shown below."}</p>}</div>
-            </div>
-            <div className="rounded-md border bg-slate-50 p-4"><div className="mb-2 flex items-center gap-2 text-sm font-medium"><Clock3 className="size-4 text-teal-700" /> Doctor availability</div>{availability.length ? <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">{availability.map((slot) => <span key={`${slot.dayOfWeek}-${slot.startTime}`}>{dayNames[slot.dayOfWeek]}: {formatTime12(slot.startTime)} - {formatTime12(slot.endTime)}</span>)}</div> : <p className="text-xs text-muted-foreground">Select a doctor to view working hours.</p>}</div>
-            {formError && <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{formError}</div>}
-            <DialogFooter><Button type="button" variant="outline" onClick={() => changeOpen(false)}>Cancel</Button><Button type="submit" className="bg-teal-700 hover:bg-teal-800" disabled={submitting || !form.patientId || !form.doctorId || !validSelection}>{submitting ? "Booking..." : "Book appointment"}</Button></DialogFooter>
-          </form>}
-        </DialogContent>
-      </Dialog>
-    </div>
-    {notice && <div className="mt-6 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"><CheckCircle2 className="size-4" />{notice}</div>}
-    {error && <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-    {recallOnly ? (loading ? <Card className="mt-8 bg-white shadow-none"><CardContent className="space-y-3 p-6"><div className="h-24 animate-pulse rounded-lg bg-slate-100" /><div className="h-24 animate-pulse rounded-lg bg-slate-100" /></CardContent></Card> : <RecallRequestsPanel recallRequests={recallRequests} onSchedule={chooseRecall} />) : <><div className="mt-8 flex flex-wrap items-center gap-2 rounded-lg border bg-white p-1.5 shadow-sm">{filters.map((item) => <Button key={item.value} size="sm" variant={scheduleFilter === item.value ? "default" : "outline"} className={scheduleFilter === item.value ? "bg-teal-700 hover:bg-teal-800" : "border-transparent shadow-none"} onClick={() => setScheduleFilter(item.value)}>{item.label}</Button>)}</div>
-    <Card className="mt-4 bg-white shadow-none"><CardContent className="p-0">
-      {loading ? <div className="space-y-3 p-6"><div className="h-12 animate-pulse rounded bg-slate-100" /><div className="h-12 animate-pulse rounded bg-slate-100" /></div> : visibleAppointments.length === 0 ? <div className="grid place-items-center px-6 py-16 text-center"><div className="grid size-12 place-items-center rounded-md bg-teal-50 text-teal-700"><CalendarDays className="size-5" /></div><p className="mt-4 font-medium">No appointments in this view</p><p className="mt-1 text-sm text-muted-foreground">Try another filter or book an appointment within a doctor's working hours.</p></div> : <Table>
-        <TableHeader><TableRow><TableHead>Time & patient</TableHead><TableHead>Doctor</TableHead><TableHead>Status</TableHead><TableHead>Eligibility</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
-        <TableBody>{visibleAppointments.map((appointment) => <TableRow key={appointment._id}><TableCell><p className="font-medium">{appointment.patientId?.name}</p><p className="text-xs text-muted-foreground">{formatClinicDateTime(appointment.scheduledAt)} · {appointment.visitType}</p></TableCell><TableCell><span className="flex items-center gap-2"><Stethoscope className="size-4 text-teal-700" />{appointment.doctorId?.name}</span></TableCell><TableCell><Badge variant={appointment.status}>{appointment.status.replace("_", " ")}</Badge></TableCell><TableCell><Badge variant={appointment.eligibilityStatus}>{appointment.eligibilityStatus}</Badge></TableCell><TableCell className="text-right">{appointment.status === "scheduled" ? <Button size="sm" variant="outline" onClick={() => checkIn(appointment._id)}>Check In</Button> : <span className="text-xs text-muted-foreground">No action</span>}</TableCell></TableRow>)}</TableBody>
-      </Table>}
-    </CardContent></Card></>}
-  </>;
+    if (!bookingOpen || step !== "details") return undefined;
+    const timer = window.setTimeout(() => {
+      const inputs = [...document.querySelectorAll('input[type="datetime-local"]')];
+      const dateInput = inputs.at(-1);
+      if (!dateInput) return;
+      dateInput.disabled = !selectedDoctorId;
+      let panel = document.getElementById("meridian-doctor-availability");
+      if (!panel) {
+        panel = document.createElement("div");
+        panel.id = "meridian-doctor-availability";
+        panel.className = "mt-3 rounded-md border bg-slate-50 p-3 text-xs text-slate-700";
+        dateInput.parentElement?.appendChild(panel);
+      }
+      if (!selectedDoctorId) { panel.innerHTML = "<p class='text-slate-500'>Select an eligible Doctor to view their published availability.</p>"; return; }
+      if (!availability.length) { panel.innerHTML = "<p class='font-medium text-amber-700'>This Doctor has not published availability yet.</p>"; return; }
+      const rows = availability.map((slot) => `<span>${dayNames[slot.dayOfWeek]}: ${formatTime12(slot.startTime)}–${formatTime12(slot.endTime)}</span>`).join("");
+      panel.innerHTML = `<p class='mb-2 font-semibold text-slate-800'>Doctor availability</p><div class='grid gap-1 sm:grid-cols-2'>${rows}</div>`;
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [availability, bookingOpen, selectedDoctorId, step]);
+  const selectedVisit = visitTypes.find((item) => item.id === booking.visitTypeId); const eligibleDoctors = selectedVisit ? doctors.filter((doctor) => doctor.specialties?.some((specialty) => selectedVisit.specialtyIds.includes(specialty.id))) : [];
+  const eligibleResources = selectedVisit?.requiredResourceType ? resources.filter((resource) => resource.type === selectedVisit.requiredResourceType) : resources;
+  const valid = booking.scheduledAt && selectedDoctorId && isAvailableDateTime(booking.scheduledAt, availability);
+  const update = (key, value) => { setBooking((current) => ({ ...current, [key]: value })); if (key !== "overrideReason") setError(""); };
+  async function loadAvailability(doctorId) { const data = await apiRequest(`${root}/availability/${doctorId}`, { headers }); setAvailability(data.availability.slots); }
+  function closeBooking(open) { setBookingOpen(open); if (!open) { setStep("search"); setBooking(blank); setSelectedDoctorId(""); setPatient(null); setAvailability([]); setScheduledWaitId(""); setError(""); } }
+  function choosePatient(item) { setPatient(item); update("patientId", item.id); setStep("details"); }
+  async function chooseVisit(visitTypeId) { update("visitTypeId", visitTypeId); update("doctorId", ""); update("resourceId", "none"); update("scheduledAt", ""); setSelectedDoctorId(""); setAvailability([]); }
+  async function chooseDoctor(doctorId) { setError(""); setSelectedDoctorId(doctorId); setBooking((current) => ({ ...current, doctorId, scheduledAt: "" })); try { await loadAvailability(doctorId); } catch (requestError) { setError(requestError.message); } }
+  async function book(event) { event.preventDefault(); if (!valid) return setError("Choose a date and time that fits the selected Doctor's availability."); try { const data = await apiRequest(`${root}/appointments`, { method: "POST", headers, body: JSON.stringify({ ...booking, doctorId: selectedDoctorId, resourceId: booking.resourceId === "none" ? undefined : booking.resourceId }) }); setAppointments((current) => [...current, data.appointment].sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))); if (scheduledWaitId) { await apiRequest(`${root}/waitlist/${scheduledWaitId}`, { method: "DELETE", headers }); setWaitlist((current) => current.filter((item) => item._id !== scheduledWaitId)); } setNotice(scheduledWaitId ? "Appointment booked and patient removed from waitlist." : "Appointment booked with configured provider, duration and resource rules."); closeBooking(false); } catch (requestError) { setError(requestError.message); } }
+  async function checkIn(item) { try { const data = await apiRequest(`${root}/appointments/${item._id}/check-in`, { method: "PATCH", headers }); setAppointments((current) => current.map((entry) => entry._id === item._id ? data.appointment : entry)); setNotice("Patient checked in and eligibility re-verified."); } catch (requestError) { setError(requestError.message); } }
+  async function cancel(item) { const reason = window.prompt("Cancellation reason (required):"); if (!reason) return; try { const data = await apiRequest(`${root}/appointments/${item._id}/cancel`, { method: "PATCH", headers, body: JSON.stringify({ reason }) }); setAppointments((current) => current.map((entry) => entry._id === item._id ? data.appointment : entry)); setNotice("Appointment cancelled. Waiting patients remain available for scheduling."); } catch (requestError) { setError(requestError.message); } }
+  async function noShow(item) { if (!window.confirm(`Mark ${item.patientId?.name} as a no-show?`)) return; try { const data = await apiRequest(`${root}/appointments/${item._id}/no-show`, { method: "PATCH", headers }); setAppointments((current) => current.map((entry) => entry._id === item._id ? data.appointment : entry)); setNotice("Appointment marked no-show and pending reminders stopped."); } catch (requestError) { setError(requestError.message); } }
+  async function addWaitlist(event) { event.preventDefault(); if (!waitDoctor) return setError("Select the preferred Doctor."); try { const data = await apiRequest(`${root}/waitlist`, { method: "POST", headers, body: JSON.stringify({ patientId: waitPatient.id, doctorId: waitDoctor, note: waitNote }) }); setWaitlist((current) => [data.entry, ...current]); setWaitOpen(false); setWaitPatient(null); setWaitDoctor(""); setWaitNote(""); setNotice("Patient added to the waitlist."); } catch (requestError) { setError(requestError.message); } }
+  async function scheduleWaiting(entry) { const person = entry.patientId; const doctor = entry.doctorId; if (!person?._id || !doctor?._id) return setError("Waitlist record is incomplete."); setPatient({ id: person._id, name: person.name }); setBooking({ ...blank, patientId: person._id, doctorId: doctor._id }); setScheduledWaitId(entry._id); setStep("details"); setBookingOpen(true); try { await loadAvailability(doctor._id); } catch (requestError) { setError(requestError.message); } }
+  async function removeWaiting(entry) { if (!window.confirm(`Remove ${entry.patientId?.name} from waitlist?`)) return; await apiRequest(`${root}/waitlist/${entry._id}`, { method: "DELETE", headers }); setWaitlist((current) => current.filter((item) => item._id !== entry._id)); setNotice("Patient removed from waitlist."); }
+  const reminderText = (id) => reminders.filter((item) => String(item.appointmentId) === String(id)).map((item) => `${item.channel}: ${item.status.replaceAll("_", " ")}`).join(" | ");
+  return <><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-teal-700">Front-desk operations</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">Scheduling</h1><p className="mt-2 text-muted-foreground">Choose a configured visit type first; Meridian then shows eligible providers, duration and resource requirements.</p></div><div className="flex gap-2"><Dialog open={waitOpen} onOpenChange={setWaitOpen}><DialogTrigger asChild><Button variant="outline"><ListPlus className="mr-2 size-4" /> Waitlist</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Add patient to waitlist</DialogTitle><DialogDescription>Use when the preferred Doctor has no suitable slot.</DialogDescription></DialogHeader>{!waitPatient ? <PatientSearchStep basePath={`${root}/patients`} headers={headers} onSelect={setWaitPatient} onCreate={() => setError("Register patient first, then return here.")} /> : <form className="space-y-4" onSubmit={addWaitlist}><p className="rounded-md bg-teal-50 p-3 font-medium">{waitPatient.name}</p><Select value={waitDoctor} onValueChange={setWaitDoctor}><SelectTrigger><SelectValue placeholder="Preferred Doctor" /></SelectTrigger><SelectContent>{doctors.map((doctor) => <SelectItem value={doctor.id} key={doctor.id}>{doctor.name}</SelectItem>)}</SelectContent></Select><Input value={waitNote} onChange={(event) => setWaitNote(event.target.value)} placeholder="Preference or note (optional)" /><DialogFooter><Button className="bg-teal-700 hover:bg-teal-800">Add to waitlist</Button></DialogFooter></form>}</DialogContent></Dialog><Dialog open={bookingOpen} onOpenChange={closeBooking}><DialogTrigger asChild><Button className="bg-teal-700 hover:bg-teal-800"><Plus className="mr-2 size-4" /> Book appointment</Button></DialogTrigger><DialogContent>{step === "search" && <><DialogHeader><DialogTitle>Find patient</DialogTitle></DialogHeader><PatientSearchStep basePath={`${root}/patients`} headers={headers} onSelect={choosePatient} onCreate={(value) => { setQuery(value); setStep("create"); }} /></>}{step === "create" && <PatientCreateForm basePath={`${root}/patients`} headers={headers} initialQuery={query} onBack={() => setStep("search")} onCreated={choosePatient} onViewExisting={choosePatient} />}{step === "details" && <form className="space-y-4" onSubmit={book}><DialogHeader><DialogTitle>{scheduledWaitId ? "Offer available slot" : "Book appointment"}</DialogTitle><DialogDescription>{scheduledWaitId ? "Select a visit type and valid slot; the patient is removed from waitlist only after booking." : `Booking for ${patient?.name}.`}</DialogDescription></DialogHeader><div className="space-y-2"><Label>Visit type</Label><Select value={booking.visitTypeId} onValueChange={chooseVisit}><SelectTrigger><SelectValue placeholder="Select visit type" /></SelectTrigger><SelectContent>{visitTypes.map((item) => <SelectItem key={item.id} value={item.id}>{item.name} · {item.durationMinutes} min</SelectItem>)}</SelectContent></Select>{!visitTypes.length && <p className="text-xs text-amber-700">Admin must configure visit types in Scheduling Setup before booking.</p>}</div>{selectedVisit && <div className="rounded-md border border-violet-100 bg-violet-50 p-3 text-xs text-violet-900">{selectedVisit.durationMinutes}-minute visit · Eligible: {selectedVisit.specialties.map((item) => item.name).join(", ")} · {selectedVisit.requiredResourceType ? `Requires ${selectedVisit.requiredResourceType.replaceAll("_", " ")}` : "No resource required"}</div>}<div className="space-y-2"><Label>Eligible Doctor</Label><Select value={booking.doctorId} onValueChange={chooseDoctor} disabled={!selectedVisit || Boolean(scheduledWaitId)}><SelectTrigger><SelectValue placeholder="Select Doctor" /></SelectTrigger><SelectContent>{(scheduledWaitId ? doctors.filter((doctor) => doctor.id === booking.doctorId) : eligibleDoctors).map((doctor) => <SelectItem key={doctor.id} value={doctor.id}>{doctor.name} · {doctor.specialties?.map((item) => item.name).join(", ")}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label>{selectedVisit?.requiredResourceType ? `Required ${selectedVisit.requiredResourceType.replaceAll("_", " ")}` : "Resource (optional)"}</Label><Select value={booking.resourceId} onValueChange={(value) => update("resourceId", value)} disabled={!selectedVisit}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{!selectedVisit?.requiredResourceType && <SelectItem value="none">No resource required</SelectItem>}{eligibleResources.map((resource) => <SelectItem value={resource._id} key={resource._id}>{resource.name} · {resource.type.replaceAll("_", " ")}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label>Date and time</Label><Input type="datetime-local" min={`${dateKey()}T00:00`} value={booking.scheduledAt} onChange={(event) => update("scheduledAt", event.target.value)} disabled={!booking.doctorId} required /><p className={`text-xs ${booking.scheduledAt ? (valid ? "text-emerald-700" : "text-red-600") : "text-muted-foreground"}`}>{booking.scheduledAt ? (valid ? "Start time is within Doctor availability; full duration is verified on booking." : "Outside Doctor availability.") : "Choose an eligible Doctor first."}</p></div>{error.includes("conflict") && <div className="rounded-md border border-amber-300 bg-amber-50 p-3"><p className="flex gap-2 font-semibold text-amber-900"><AlertTriangle className="size-4" /> Explicit override</p><Input className="mt-2" value={booking.overrideReason} onChange={(event) => update("overrideReason", event.target.value)} placeholder="Required authorised exception reason" /></div>}{error && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}<DialogFooter><Button className="bg-teal-700 hover:bg-teal-800" disabled={!valid || !booking.visitTypeId || (Boolean(selectedVisit?.requiredResourceType) && booking.resourceId === "none")}>Book appointment</Button></DialogFooter></form>}</DialogContent></Dialog></div></div>{notice && <p className="mt-6 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}{error && !bookingOpen && <p className="mt-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}<Card className="mt-6 border-violet-100 bg-white shadow-none"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ListPlus className="size-5 text-violet-700" /> Current waitlist</CardTitle><CardDescription>Schedule a waiting patient when capacity opens, or remove the entry.</CardDescription></CardHeader><CardContent>{waitlist.length ? <div className="space-y-3">{waitlist.map((entry) => <div className="flex items-center justify-between gap-3 rounded-lg border p-4" key={entry._id}><div><p className="font-medium">{entry.patientId?.name}</p><p className="text-xs text-muted-foreground">{entry.doctorId?.name} · {entry.note || "No preference note"}</p></div><div className="flex gap-2"><Button size="sm" className="bg-teal-700 hover:bg-teal-800" onClick={() => scheduleWaiting(entry)}>Schedule</Button><Button size="sm" variant="outline" onClick={() => removeWaiting(entry)}><Trash2 className="size-3.5" /></Button></div></div>)}</div> : <p className="text-sm text-muted-foreground">No waitlist entries.</p>}</CardContent></Card><Card className="mt-6 overflow-hidden bg-white shadow-none"><CardContent className="p-0">{loading ? <div className="h-32 animate-pulse bg-slate-100" /> : <Table><TableHeader><TableRow><TableHead>Time & patient</TableHead><TableHead>Provider / resource</TableHead><TableHead>Status</TableHead><TableHead>Eligibility & reminders</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>{appointments.map((item) => { const passed = new Date(item.scheduledAt).getTime() <= Date.now(); return <TableRow key={item._id}><TableCell><p className="font-medium">{item.patientId?.name}</p><p className="text-xs text-muted-foreground">{formatClinicDateTime(item.scheduledAt)} · {item.visitType} · {item.durationMinutes || 30} min</p></TableCell><TableCell><p className="flex gap-1 text-sm"><Stethoscope className="size-4 text-teal-700" />{item.doctorId?.name}</p><p className="text-xs text-muted-foreground">{item.resourceId?.name || "No resource"}</p></TableCell><TableCell><Badge variant={item.status}>{item.status.replace("_", " ")}</Badge></TableCell><TableCell><Badge variant={item.eligibilityStatus}>{item.eligibilityStatus}</Badge>{item.status === "scheduled" && stale(item.eligibilityCheckedAt) && <p className="mt-1 text-xs text-amber-700">Re-verify at check-in</p>}{reminderText(item._id) && <p className="mt-1 flex gap-1 text-xs text-slate-500"><BellRing className="size-3" />{reminderText(item._id)}</p>}</TableCell><TableCell className="text-right">{item.status === "scheduled" ? <div className="flex flex-wrap justify-end gap-1"><Button size="sm" variant="outline" onClick={() => checkIn(item)}><CheckCircle2 className="mr-1 size-3.5" />Check in</Button><Button size="sm" variant="outline" onClick={() => cancel(item)}>Cancel</Button><Button size="sm" variant="outline" disabled={!passed} title={passed ? "Mark patient as no-show" : `Available after ${formatClinicDateTime(item.scheduledAt)}`} className="text-amber-700" onClick={() => noShow(item)}><CalendarDays className="mr-1 size-3.5" />No-show</Button></div> : <span className="text-xs text-muted-foreground">No action</span>}</TableCell></TableRow>; })}</TableBody></Table>}</CardContent></Card></>;
 }

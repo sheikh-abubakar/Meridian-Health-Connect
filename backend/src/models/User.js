@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: userRoles, required: true },
+    specialtyIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Specialty" }],
     isActive: { type: Boolean, default: true, index: true },
   },
   { timestamps: { createdAt: true, updatedAt: false } },

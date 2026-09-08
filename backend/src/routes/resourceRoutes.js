@@ -1,0 +1,15 @@
+import { Router } from "express";
+import { createResource, listResources, updateSchedulingSettings } from "../controllers/resourceController.js";
+import { authenticate } from "../middleware/authenticate.js";
+import { authorizeLocationAccess } from "../middleware/authorizeLocationAccess.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+import { createSpecialty, createVisitType, listSpecialties, listVisitTypes } from "../controllers/schedulingSetupController.js";
+export const resourceRouter = Router({ mergeParams: true });
+resourceRouter.use(authenticate, authorizeLocationAccess);
+resourceRouter.get("/", authorizeRoles("admin", "frontdesk"), listResources);
+resourceRouter.get("/specialties", authorizeRoles("admin", "frontdesk"), listSpecialties);
+resourceRouter.get("/visit-types", authorizeRoles("admin", "frontdesk"), listVisitTypes);
+resourceRouter.post("/", authorizeRoles("admin"), createResource);
+resourceRouter.post("/specialties", authorizeRoles("admin"), createSpecialty);
+resourceRouter.post("/visit-types", authorizeRoles("admin"), createVisitType);
+resourceRouter.patch("/settings", authorizeRoles("admin"), updateSchedulingSettings);

@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import { Availability } from "../models/Availability.js";
+import { Resource } from "../models/Resource.js";
+import { Waitlist } from "../models/Waitlist.js";
 import { Appointment } from "../models/Appointment.js";
 import { AuditLog } from "../models/AuditLog.js";
 import { CarePlan } from "../models/CarePlan.js";
@@ -11,7 +13,7 @@ import { RecallRequest } from "../models/RecallRequest.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-const models = { User, Patient, Appointment, Encounter, CarePlan, Task, RecallRequest, Availability };
+const models = { User, Patient, Appointment, Encounter, CarePlan, Task, RecallRequest, Availability, Resource, Waitlist };
 const scope = (req) => ({ tenantId: req.tenantId, locationId: req.locationId });
 
 function targetLabel(type, target) {
@@ -24,6 +26,8 @@ function targetLabel(type, target) {
   if (type === "Task") return target.description;
   if (type === "RecallRequest") return `${target.patientId?.name || "Patient"} — recall request`;
   if (type === "Availability") return `${target.doctorId?.name || "Doctor"} — working hours`;
+  if (type === "Resource") return `${target.name} (${target.type.replaceAll("_", " ")})`;
+  if (type === "Waitlist") return `${target.patientId?.name || "Patient"} — waitlist`;
   return type;
 }
 
@@ -36,7 +40,7 @@ async function resolveTargets(logs, req) {
     if (!Model) return;
     let query = Model.find({ _id: { $in: ids }, tenantId: req.tenantId });
     if (type !== "User") query = query.find({ locationId: req.locationId });
-    if (["Appointment", "Encounter", "CarePlan", "RecallRequest"].includes(type)) query = query.populate({ path: "patientId", select: "name", match: scope(req) });
+    if (["Appointment", "Encounter", "CarePlan", "RecallRequest", "Waitlist"].includes(type)) query = query.populate({ path: "patientId", select: "name", match: scope(req) });
     if (type === "Availability") query = query.populate({ path: "doctorId", select: "name", match: scope(req) });
     const targets = await query.lean();
     for (const target of targets) resolved.set(`${type}:${target._id}`, target);

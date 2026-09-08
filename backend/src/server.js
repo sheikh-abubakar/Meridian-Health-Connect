@@ -5,13 +5,17 @@ import { connectDatabase } from "./config/database.js";
 import { env, validateRuntimeEnv } from "./config/env.js";
 import { startRealtimeChangeStream } from "./realtime/changeStream.js";
 import { createSocketServer } from "./realtime/socketServer.js";
+import { startReminderWorker } from "./services/reminderWorker.js";
+import { ensureSchedulingIndexes } from "./services/schedulingIndexService.js";
 
 async function start() {
   validateRuntimeEnv();
   await connectDatabase();
+  await ensureSchedulingIndexes();
   const server = createServer(app);
   const io = createSocketServer(server);
   const changeStream = startRealtimeChangeStream(io);
+  const reminderWorker = startReminderWorker();
   server.requestTimeout = 30000;
   server.headersTimeout = 35000;
   server.keepAliveTimeout = 5000;
@@ -24,6 +28,7 @@ async function start() {
     const forcedExit = setTimeout(() => process.exit(1), 10000);
     forcedExit.unref();
     await changeStream.close().catch(() => undefined);
+    clearInterval(reminderWorker);
     await new Promise((resolve) => io.close(resolve));
     if (server.listening) await new Promise((resolve) => server.close(resolve));
     await mongoose.disconnect();

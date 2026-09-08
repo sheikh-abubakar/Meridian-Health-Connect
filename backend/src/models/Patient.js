@@ -14,6 +14,11 @@ const patientSchema = new mongoose.Schema(
       provider: { type: String, trim: true },
       policyNumber: { type: String, trim: true },
     },
+    communicationPreferences: {
+      smsOptOut: { type: Boolean, default: false },
+      emailOptOut: { type: Boolean, default: false },
+      voiceOptOut: { type: Boolean, default: false },
+    },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

@@ -82,7 +82,7 @@ export async function apiRequest(path, options = {}) {
   const request = (async () => {
     const response = await fetch(`${API_URL}${path}`, { ...options, method, headers });
     const payload = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(payload?.error?.message || "Request failed");
+    if (!response.ok) { const error = new Error(payload?.error?.message || "Request failed"); error.details = payload?.error?.details; throw error; }
     if (method === "GET" && requestGeneration === cacheGeneration) writeCache(key, payload.data);
     else clearApiCache();
     return payload.data;

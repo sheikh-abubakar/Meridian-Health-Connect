@@ -14,5 +14,5 @@ export function errorHandler(error, _req, res, _next) {
     : statusCode === 500 ? "An unexpected error occurred" : error.message;
 
   if (statusCode === 500) console.error(error);
-  res.status(statusCode).json({ success: false, error: { message } });
+  res.status(statusCode).json({ success: false, error: { message, ...(error?.details ? { details: error.details } : {}) } });
 }

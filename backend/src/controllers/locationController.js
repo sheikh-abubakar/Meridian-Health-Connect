@@ -40,8 +40,8 @@ export const getLocationContext = asyncHandler(async (req, res) => {
         name: req.location.name,
         slug: req.location.slug,
         address: req.location.address,
+        schedulingSettings: req.location.schedulingSettings,
       },
     },
   });
 });
-

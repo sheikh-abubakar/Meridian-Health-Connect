@@ -13,9 +13,13 @@ import { Encounter } from "../src/models/Encounter.js";
 import { Location } from "../src/models/Location.js";
 import { Patient } from "../src/models/Patient.js";
 import { RecallRequest } from "../src/models/RecallRequest.js";
+import { Reminder } from "../src/models/Reminder.js";
 import { Task } from "../src/models/Task.js";
 import { Tenant } from "../src/models/Tenant.js";
 import { User } from "../src/models/User.js";
+import { Waitlist } from "../src/models/Waitlist.js";
+import { Specialty } from "../src/models/Specialty.js";
+import { VisitType } from "../src/models/VisitType.js";
 
 const testDbName = `meridian_test_${process.pid}_${Date.now().toString(36)}`;
 let server;
@@ -248,4 +252,37 @@ test("care plan updates require a reason and append version history", async () =
   assert.equal(updated.body.data.carePlan.history.length, 2);
   assert.match(updated.body.data.carePlan.history[1].change, /Old target/);
   assert.equal(updated.body.data.carePlan.history[1].reason, "Clinical progress");
+});
+
+test("Phase 1 scheduling records cancellations, no-shows, waitlist entries, resources, and simulated reminders", async () => {
+  const f = fixtures;
+  const past = await Appointment.create({ tenantId: f.city._id, locationId: f.gulberg._id, patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, visitType: "Past visit", scheduledAt: new Date("2020-01-01T10:00:00Z"), eligibilityStatus: "verified", createdBy: f.cityFrontdesk._id });
+  const noShow = await request(`/city-care/gulberg/appointments/${past._id}/no-show`, { user: f.cityFrontdesk, tenant: f.city, method: "PATCH" });
+  assert.equal(noShow.status, 200); assert.equal(noShow.body.data.appointment.status, "no_show");
+  const upcoming = await Appointment.create({ tenantId: f.city._id, locationId: f.gulberg._id, patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, visitType: "Cancelled visit", scheduledAt: new Date("2031-01-01T10:00:00Z"), eligibilityStatus: "verified", createdBy: f.cityFrontdesk._id });
+  const cancelled = await request(`/city-care/gulberg/appointments/${upcoming._id}/cancel`, { user: f.cityFrontdesk, tenant: f.city, method: "PATCH", body: { reason: "Patient requested cancellation" } });
+  assert.equal(cancelled.status, 200); assert.equal(cancelled.body.data.appointment.status, "cancelled"); assert.equal(cancelled.body.data.appointment.cancellationReason, "Patient requested cancellation");
+  const resource = await request("/city-care/gulberg/resources", { user: f.cityAdmin, tenant: f.city, method: "POST", body: { name: "Consultation Room 1", type: "room" } });
+  assert.equal(resource.status, 201); assert.equal((await request("/city-care/gulberg/resources", { user: f.cityFrontdesk, tenant: f.city })).body.data.resources[0].name, "Consultation Room 1");
+  const waiting = await request("/city-care/gulberg/waitlist", { user: f.cityFrontdesk, tenant: f.city, method: "POST", body: { patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, note: "Please offer the next morning slot" } });
+  assert.equal(waiting.status, 201); assert.equal(String(waiting.body.data.entry.locationId), String(f.gulberg._id)); assert.equal(await Waitlist.countDocuments({ locationId: f.gulberg._id }), 1);
+  await Availability.findOneAndUpdate({ tenantId: f.city._id, locationId: f.gulberg._id, doctorId: f.cityDoctor._id }, { $set: { slots: [{ dayOfWeek: 3, startTime: "00:00", endTime: "23:59" }] } }, { upsert: true });
+  const reminderBooking = await request("/city-care/gulberg/appointments", { user: f.cityFrontdesk, tenant: f.city, method: "POST", body: { patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, visitType: "Reminder verification", scheduledAt: "2032-01-07T10:00" } });
+  assert.equal(reminderBooking.status, 201); assert.equal(await Reminder.countDocuments({ appointmentId: reminderBooking.body.data.appointment._id, status: { $in: ["scheduled", "skipped_opt_out"] } }), 2);
+  assert.equal(await AuditLog.countDocuments({ action: "appointment_no_show", targetId: past._id }), 1); assert.equal(await AuditLog.countDocuments({ action: "appointment_cancelled", targetId: upcoming._id }), 1); assert.equal(await AuditLog.countDocuments({ action: "resource_created" }), 1);
+});
+
+test("specialty-aware visit types filter providers and enforce duration and required resource", async () => {
+  const f = fixtures;
+  const specialty = await Specialty.create({ tenantId: f.city._id, name: "Cardiology" });
+  await User.updateOne({ _id: f.cityDoctor._id }, { $set: { specialtyIds: [specialty._id] } });
+  const visitType = await VisitType.create({ tenantId: f.city._id, locationId: f.gulberg._id, name: "Cardiology follow-up", specialtyIds: [specialty._id], durationMinutes: 30, requiredResourceType: "room" });
+  const room = await (await request("/city-care/gulberg/resources", { user: f.cityAdmin, tenant: f.city, method: "POST", body: { name: "Cardiology Room", type: "room" } })).body.data.resource;
+  await Availability.findOneAndUpdate({ tenantId: f.city._id, locationId: f.gulberg._id, doctorId: f.cityDoctor._id }, { $set: { slots: [{ dayOfWeek: 5, startTime: "09:00", endTime: "10:00" }] } }, { upsert: true });
+  const directory = await request(`/city-care/gulberg/doctors?visitTypeId=${visitType._id}`, { user: f.cityFrontdesk, tenant: f.city });
+  assert.equal(directory.status, 200); assert.equal(directory.body.data.doctors[0].name, "City Doctor");
+  const rejected = await request("/city-care/gulberg/appointments", { user: f.cityFrontdesk, tenant: f.city, method: "POST", body: { patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, visitTypeId: visitType._id, scheduledAt: "2031-01-03T09:45", resourceId: room._id } });
+  assert.equal(rejected.status, 400); assert.match(rejected.body.error.message, /full 30-minute/i);
+  const booked = await request("/city-care/gulberg/appointments", { user: f.cityFrontdesk, tenant: f.city, method: "POST", body: { patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, visitTypeId: visitType._id, scheduledAt: "2031-01-03T09:15", resourceId: room._id } });
+  assert.equal(booked.status, 201); assert.equal(booked.body.data.appointment.durationMinutes, 30); assert.equal(booked.body.data.appointment.visitType, "Cardiology follow-up");
 });

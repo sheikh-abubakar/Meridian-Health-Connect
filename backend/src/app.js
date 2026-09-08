@@ -21,6 +21,9 @@ import { patientRouter } from "./routes/patientRoutes.js";
 import { profileRouter } from "./routes/profileRoutes.js";
 import { userRouter } from "./routes/userRoutes.js";
 import { recallRequestRouter } from "./routes/recallRequestRoutes.js";
+import { resourceRouter } from "./routes/resourceRoutes.js";
+import { waitlistRouter } from "./routes/waitlistRoutes.js";
+import { reminderRouter } from "./routes/reminderRoutes.js";
 
 export const app = express();
 
@@ -64,6 +67,9 @@ app.use("/api/:tenantSlug/:locationSlug/careplans", resolveTenant, resolveLocati
 app.use("/api/:tenantSlug/:locationSlug/tasks", resolveTenant, resolveLocation, taskRouter);
 app.use("/api/:tenantSlug/:locationSlug/audit-logs", resolveTenant, resolveLocation, auditLogRouter);
 app.use("/api/:tenantSlug/:locationSlug/recall-requests", resolveTenant, resolveLocation, recallRequestRouter);
+app.use("/api/:tenantSlug/:locationSlug/resources", resolveTenant, resolveLocation, resourceRouter);
+app.use("/api/:tenantSlug/:locationSlug/waitlist", resolveTenant, resolveLocation, waitlistRouter);
+app.use("/api/:tenantSlug/:locationSlug/reminders", resolveTenant, resolveLocation, reminderRouter);
 app.use("/api/:tenantSlug/:locationSlug", resolveTenant, resolveLocation, directoryRouter);
 
 app.use(notFoundHandler);

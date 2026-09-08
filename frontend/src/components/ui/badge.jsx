@@ -9,6 +9,7 @@ const badgeVariants = cva("inline-flex items-center rounded-md px-2.5 py-1 text-
       checked_in: "bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200",
       completed: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
       cancelled: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200",
+      no_show: "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200",
       verified: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
       pending: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
       draft: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
