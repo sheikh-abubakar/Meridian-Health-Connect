@@ -18,8 +18,11 @@ export async function ensureSchedulingIndexes() {
   // Deliberately leave branch-specific reminder policies untouched.
   const legacyDefaults = await Location.updateMany(
     { $or: [
-      { "schedulingSettings.reminderRules": [{ channel: "sms", offsetHours: 48 }, { channel: "email", offsetHours: 24 }] },
-      { "schedulingSettings.reminderRules": [{ channel: "sms", offsetHours: 12 }] },
+      { "schedulingSettings.reminderRules": { $size: 1, $elemMatch: { channel: "sms", offsetHours: 12 } } },
+      { "schedulingSettings.reminderRules": { $size: 2, $all: [
+        { $elemMatch: { channel: "sms", offsetHours: 48 } },
+        { $elemMatch: { channel: "email", offsetHours: 24 } },
+      ] } },
     ] },
     { $set: { "schedulingSettings.reminderRules": [{ channel: "sms", offsetHours: 5 / 60 }] } },
   );
