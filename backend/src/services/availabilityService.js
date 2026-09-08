@@ -2,6 +2,7 @@ import { ApiError } from "../utils/ApiError.js";
 
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const clinicDateTimePattern = /^(\d{4}-\d{2}-\d{2})T([0-2]\d:[0-5]\d)$/;
+const clinicUtcOffset = "+05:00"; // Meridian's current Pakistan clinic deployment (Asia/Karachi).
 
 export function validateAvailabilitySlots(rawSlots) {
   if (!Array.isArray(rawSlots)) throw new ApiError(400, "Availability slots must be an array");
@@ -40,12 +41,13 @@ export function parseClinicDateTime(value) {
   if (!match) throw new ApiError(400, "scheduledAt must use YYYY-MM-DDTHH:mm clinic-local format");
 
   const [, datePart, time] = match;
-  const scheduledAt = new Date(`${datePart}T${time}:00.000Z`);
-  if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.toISOString().slice(0, 10) !== datePart) {
+  const scheduledAt = new Date(`${datePart}T${time}:00.000${clinicUtcOffset}`);
+  const clinicDay = new Date(`${datePart}T00:00:00.000Z`);
+  if (Number.isNaN(scheduledAt.getTime()) || Number.isNaN(clinicDay.getTime())) {
     throw new ApiError(400, "Enter a valid appointment date and time");
   }
 
-  return { scheduledAt, dayOfWeek: scheduledAt.getUTCDay(), time };
+  return { scheduledAt, dayOfWeek: clinicDay.getUTCDay(), time };
 }
 
 export function isWithinAvailability(slots, dayOfWeek, time) {

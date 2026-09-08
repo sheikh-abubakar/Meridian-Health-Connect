@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { appointmentReminderText, normalizePhoneForSms } from "../src/services/moceanSmsService.js";
+import { parseClinicDateTime } from "../src/services/availabilityService.js";
 
 test("SMS phone normalization handles Pakistani and international numbers safely", () => {
   assert.equal(normalizePhoneForSms("0300 123 4567"), "923001234567");
@@ -15,4 +16,10 @@ test("SMS reminder text contains appointment logistics but no clinical content",
   assert.match(text, /DHA Branch/);
   assert.match(text, /General consultation/);
   assert.match(text, /contact the clinic/i);
+});
+
+test("clinic-local booking time is converted from Pakistan time instead of being treated as UTC", () => {
+  const parsed = parseClinicDateTime("2026-09-08T19:17");
+  assert.equal(parsed.scheduledAt.toISOString(), "2026-09-08T14:17:00.000Z");
+  assert.equal(parsed.dayOfWeek, 2);
 });

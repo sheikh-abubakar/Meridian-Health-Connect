@@ -10,7 +10,7 @@ export function dateKey(date = new Date()) {
 export function formatClinicDateTime(value) {
   const date = new Date(value);
   return new Intl.DateTimeFormat("en", {
-    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC",
+    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi",
   }).format(date);
 }
 
