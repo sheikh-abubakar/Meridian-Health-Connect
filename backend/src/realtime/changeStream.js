@@ -16,6 +16,7 @@ const collections = {
   reminders: { insert: "reminder:created", update: "reminder:updated", replace: "reminder:updated" },
   specialties: { insert: "specialty:created", update: "specialty:updated", replace: "specialty:updated" },
   visittypes: { insert: "visittype:created", update: "visittype:updated", replace: "visittype:updated" },
+  encountertemplates: { insert: "encountertemplate:created", update: "encountertemplate:updated", replace: "encountertemplate:updated" },
 };
 
 function encounterEvent(change) {

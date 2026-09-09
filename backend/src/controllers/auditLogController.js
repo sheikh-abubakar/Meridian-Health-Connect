@@ -6,6 +6,7 @@ import { Appointment } from "../models/Appointment.js";
 import { AuditLog } from "../models/AuditLog.js";
 import { CarePlan } from "../models/CarePlan.js";
 import { Encounter } from "../models/Encounter.js";
+import { EncounterTemplate } from "../models/EncounterTemplate.js";
 import { Patient } from "../models/Patient.js";
 import { Task } from "../models/Task.js";
 import { User } from "../models/User.js";
@@ -13,7 +14,7 @@ import { RecallRequest } from "../models/RecallRequest.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-const models = { User, Patient, Appointment, Encounter, CarePlan, Task, RecallRequest, Availability, Resource, Waitlist };
+const models = { User, Patient, Appointment, Encounter, EncounterTemplate, CarePlan, Task, RecallRequest, Availability, Resource, Waitlist };
 const scope = (req) => ({ tenantId: req.tenantId, locationId: req.locationId });
 
 function targetLabel(type, target) {

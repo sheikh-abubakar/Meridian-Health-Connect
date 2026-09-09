@@ -9,6 +9,15 @@ const amendmentSchema = new mongoose.Schema(
   { _id: true },
 );
 
+const attachmentSchema = new mongoose.Schema({
+  key: { type: String, required: true, trim: true },
+  fileName: { type: String, required: true, trim: true },
+  mimeType: { type: String, required: true, trim: true },
+  size: { type: Number, required: true, min: 1 },
+  uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  uploadedAt: { type: Date, default: Date.now, immutable: true },
+}, { _id: true });
+
 const encounterSchema = new mongoose.Schema(
   {
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
@@ -21,6 +30,20 @@ const encounterSchema = new mongoose.Schema(
       observations: { type: String, default: "", trim: true },
       diagnosis: { type: String, default: "", trim: true },
     },
+    templateSnapshot: {
+      templateId: { type: mongoose.Schema.Types.ObjectId, ref: "EncounterTemplate" },
+      name: { type: String, trim: true },
+      targetType: { type: String, enum: ["visit_type", "specialty"] },
+      fields: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    },
+    templateAnswers: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} },
+    templateRequiredOverrides: [{
+      fieldKey: { type: String, required: true, trim: true },
+      reason: { type: String, required: true, trim: true, maxlength: 1000 },
+      actor: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      timestamp: { type: Date, default: Date.now, immutable: true },
+    }],
+    attachments: { type: [attachmentSchema], default: [] },
     aiSummary: {
       text: { type: String, trim: true, maxlength: 10000 },
       generatedAt: { type: Date },
@@ -41,7 +64,7 @@ encounterSchema.index(
 encounterSchema.index({ tenantId: 1, locationId: 1, patientId: 1, createdAt: -1 });
 
 encounterSchema.pre("save", async function preventFinalizedClinicalMutation() {
-  if (this.isNew || (!this.isModified("notes") && !this.isModified("aiSummary"))) return;
+  if (this.isNew || (!this.isModified("notes") && !this.isModified("aiSummary") && !this.isModified("templateAnswers") && !this.isModified("templateSnapshot") && !this.isModified("templateRequiredOverrides") && !this.isModified("attachments"))) return;
   const persisted = await this.constructor.findOne({
     _id: this._id,
     tenantId: this.tenantId,

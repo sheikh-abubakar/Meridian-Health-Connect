@@ -25,6 +25,9 @@ export const env = {
   moceanDefaultCountryCode: String(process.env.MOCEAN_DEFAULT_COUNTRY_CODE || "92").replace(/\D/g, ""),
   moceanDlrWebhookSecret: process.env.MOCEAN_DLR_WEBHOOK_SECRET,
   moceanDlrPublicUrl: String(process.env.MOCEAN_DLR_PUBLIC_URL || "").replace(/\/$/, ""),
+  awsRegion: process.env.AWS_REGION,
+  s3BucketName: process.env.S3_BUCKET_NAME,
+  s3AttachmentPrefix: process.env.S3_ATTACHMENT_PREFIX || "meridian-health",
 };
 
 export function validateRuntimeEnv() {

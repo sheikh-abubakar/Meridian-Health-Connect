@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/context/auth-context";
 import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
+import { EncounterTemplateManager } from "@/components/EncounterTemplateManager";
 
 const newVisit = () => ({ name: "", durationMinutes: "20", specialtyIds: [], requiredResourceType: "none" });
 function Choices({ items, selected, onChange }) { return <div className="grid gap-2 rounded-lg border p-3 sm:grid-cols-2">{items.map((item) => <label className="flex items-center gap-2 text-sm" key={item.id}><input className="size-4 accent-teal-700" type="checkbox" checked={selected.includes(item.id)} onChange={(e) => onChange(e.target.checked ? [...selected, item.id] : selected.filter((id) => id !== item.id))} />{item.name}</label>)}</div>; }
@@ -17,7 +18,7 @@ function Choices({ items, selected, onChange }) { return <div className="grid ga
 export function ResourcesPage() {
   const { tenantSlug, locationSlug } = useParams(); const { session } = useAuth(); const root = `/${tenantSlug}/${locationSlug}`;
   const headers = useMemo(() => ({ Authorization: `Bearer ${session.accessToken}` }), [session.accessToken]);
-  const revision = useRealtimeRevision(["resource:created", "resource:updated", "specialty:created", "visittype:created"]);
+  const revision = useRealtimeRevision(["resource:created", "resource:updated", "specialty:created", "visittype:created", "encountertemplate:created", "encountertemplate:updated"]);
   const [resources, setResources] = useState([]); const [specialties, setSpecialties] = useState([]); const [visitTypes, setVisitTypes] = useState([]);
   const [settings, setSettings] = useState({ maxOverbookSlotsPerDoctorPerDay: 0, reminderHours: 5 / 60 });
   const [resource, setResource] = useState({ name: "", type: "room" }); const [specialtyName, setSpecialtyName] = useState(""); const [visit, setVisit] = useState(newVisit());

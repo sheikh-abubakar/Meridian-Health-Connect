@@ -52,6 +52,7 @@ export function AppLayout() {
     ["Dashboard", "Workspace", `${root}/dashboard`, LayoutDashboard, true],
     ["Staff", "Management", `${root}/staff`, Users, session.user.role === "admin"],
     ["Scheduling Setup", "Management", `${root}/resources`, Boxes, session.user.role === "admin"],
+    ["Clinical Templates", "Management", `${root}/clinical-templates`, ClipboardCheck, session.user.role === "admin"],
     ["Audit Log", "Management", `${root}/audit-log`, ScrollText, session.user.role === "admin"],
     ["Patients", "Operations", `${root}/patients`, UserRound, session.user.role === "frontdesk"],
     ["Scheduling", "Operations", `${root}/scheduling`, CalendarDays, session.user.role === "frontdesk"],
