@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { locationRoom } from "./socketServer.js";
 
 const collections = {
-  patients: { insert: "patient:created" },
+  patients: { insert: "patient:created", update: "patient:updated", replace: "patient:updated" },
   appointments: { insert: "appointment:created", update: "appointment:updated", replace: "appointment:updated" },
   encounters: { insert: "encounter:created", update: "encounter:updated", replace: "encounter:updated" },
   careplans: { insert: "careplan:created", update: "careplan:updated", replace: "careplan:updated" },
@@ -28,14 +28,15 @@ function encounterEvent(change) {
 export function startRealtimeChangeStream(io) {
   const stream = mongoose.connection.db.watch([], { fullDocument: "updateLookup" });
   stream.on("change", (change) => {
-    const config = collections[change.ns?.coll];
+    const collectionName = String(change.ns?.coll || "").toLowerCase();
+    const config = collections[collectionName];
     const document = change.fullDocument;
     if (!config || !document?.tenantId) return;
     let event = config[change.operationType];
-    if (change.ns.coll === "encounters" && ["update", "replace"].includes(change.operationType)) event = encounterEvent(change);
+    if (collectionName === "encounters" && ["update", "replace"].includes(change.operationType)) event = encounterEvent(change);
     if (!event) return;
     const targets = document.locationId ? [locationRoom(document.tenantId, document.locationId)] : [];
-    if (change.ns.coll === "specialties") {
+    if (collectionName === "specialties") {
       // Specialties are tenant-wide; notify each connected location only within that tenant.
       for (const [room] of io.sockets.adapter.rooms) if (room.startsWith(`tenant:${document.tenantId}:location:`)) targets.push(room);
     }

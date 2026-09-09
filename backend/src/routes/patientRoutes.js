@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createPatient, getPatient, listPatients, searchPatients, updateCommunicationPreferences } from "../controllers/patientController.js";
+import { createPatient, getPatient, listPatients, searchPatients, updateCommunicationPreferences, updatePatient, addRelatedParty, removeRelatedParty, linkHouseholdMember, unlinkHouseholdMember } from "../controllers/patientController.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeLocationAccess } from "../middleware/authorizeLocationAccess.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
@@ -7,9 +7,14 @@ import { exportPatientVisitHistory } from "../controllers/recordExportController
 
 export const patientRouter = Router({ mergeParams: true });
 patientRouter.use(authenticate, authorizeLocationAccess);
-patientRouter.get("/", authorizeRoles("frontdesk"), listPatients);
-patientRouter.get("/search", authorizeRoles("frontdesk"), searchPatients);
+patientRouter.get("/", authorizeRoles("frontdesk", "admin"), listPatients);
+patientRouter.get("/search", authorizeRoles("frontdesk", "admin"), searchPatients);
 patientRouter.get("/:id/export", authorizeRoles("frontdesk", "admin"), exportPatientVisitHistory);
-patientRouter.get("/:id", authorizeRoles("frontdesk", "doctor", "care_coordinator"), getPatient);
+patientRouter.get("/:id", authorizeRoles("frontdesk", "admin", "doctor", "care_coordinator"), getPatient);
 patientRouter.post("/", authorizeRoles("frontdesk"), createPatient);
-patientRouter.patch("/:id/communication-preferences", authorizeRoles("frontdesk"), updateCommunicationPreferences);
+patientRouter.patch("/:id", authorizeRoles("frontdesk", "admin"), updatePatient);
+patientRouter.patch("/:id/communication-preferences", authorizeRoles("frontdesk", "admin"), updateCommunicationPreferences);
+patientRouter.post("/:id/related-parties", authorizeRoles("frontdesk", "admin"), addRelatedParty);
+patientRouter.delete("/:id/related-parties/:entryId", authorizeRoles("frontdesk", "admin"), removeRelatedParty);
+patientRouter.post("/:id/household", authorizeRoles("frontdesk", "admin"), linkHouseholdMember);
+patientRouter.delete("/:id/household/:otherPatientId", authorizeRoles("frontdesk", "admin"), unlinkHouseholdMember);
