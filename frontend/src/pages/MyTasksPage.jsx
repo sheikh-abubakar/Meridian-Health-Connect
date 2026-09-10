@@ -16,7 +16,7 @@ const dateLabel = (value) => new Intl.DateTimeFormat("en-PK", { dateStyle: "medi
 const outcomeLabels = { agreed: "Agreed to follow-up", declined: "Declined", unreachable: "Unreachable" };
 
 export function MyTasksPage() {
-  const realtimeRevision = useRealtimeRevision(["task:created", "task:updated"]);
+  const realtimeRevision = useRealtimeRevision(["task:created", "task:updated", "task:escalated"]);
   const { tenantSlug, locationSlug } = useParams(); const { session } = useAuth();
   const navigate = useNavigate();
   const headers = useMemo(() => ({ Authorization: `Bearer ${session.accessToken}` }), [session.accessToken]); const root = `/${tenantSlug}/${locationSlug}`;

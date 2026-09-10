@@ -18,6 +18,7 @@ export function AppLayout() {
   const [location, setLocation] = useState(null);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [escalationNotice, setEscalationNotice] = useState(null);
   const { status: realtimeStatus } = useRealtimeStatus();
 
   useEffect(() => {
@@ -38,6 +39,14 @@ export function AppLayout() {
   }, [locationSlug, session.accessToken, session.user.id, session.user.role, tenantSlug]);
 
   useEffect(() => { setMobileOpen(false); }, [route.pathname]);
+  useEffect(() => {
+    const receive = ({ detail }) => {
+      if (detail.event !== "task:escalated" || detail.payload?.tier !== 2) return;
+      setEscalationNotice(`Task “${detail.payload.description}” is now ${detail.payload.daysOverdue} days overdue.`);
+    };
+    window.addEventListener("meridian:realtime", receive);
+    return () => window.removeEventListener("meridian:realtime", receive);
+  }, []);
   useEffect(() => {
     if (!mobileOpen) return undefined;
     const previous = document.body.style.overflow;
@@ -75,7 +84,7 @@ export function AppLayout() {
     <aside aria-label="Mobile navigation" className={cn("fixed inset-y-0 left-0 z-50 flex w-[min(82vw,18rem)] flex-col border-r border-slate-800 bg-slate-950 text-white shadow-2xl transition-transform duration-300 ease-out md:hidden", mobileOpen ? "translate-x-0" : "-translate-x-full")}>{sidebar}</aside>
     <div className="min-w-0 md:pl-64">
       <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-2 border-b bg-white/95 px-3 py-2 backdrop-blur md:px-8"><div className="flex min-w-0 items-center gap-2"><button type="button" aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"} aria-expanded={mobileOpen} onClick={() => setMobileOpen((value) => !value)} className="relative grid size-10 shrink-0 place-items-center rounded-lg border bg-white text-slate-700 shadow-sm md:hidden"><span className={cn("absolute h-0.5 w-5 rounded bg-current transition duration-300", mobileOpen ? "rotate-45" : "-translate-y-1.5")} /><span className={cn("absolute h-0.5 w-5 rounded bg-current transition duration-200", mobileOpen ? "scale-x-0 opacity-0" : "scale-x-100")} /><span className={cn("absolute h-0.5 w-5 rounded bg-current transition duration-300", mobileOpen ? "-rotate-45" : "translate-y-1.5")} /></button><div className="min-w-0"><p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold"><span className="truncate">{session.tenant.name}</span><span className="hidden text-slate-300 sm:inline">—</span><span className="hidden shrink-0 items-center gap-1 text-teal-700 sm:flex"><MapPin className="size-3.5" />{location?.name || "Loading branch…"}</span></p><p className="truncate text-xs text-muted-foreground"><span className="sm:hidden">{location?.name ? `${location.name} · ` : ""}</span>{roleLabels[session.user.role]}</p></div></div><div className="flex shrink-0 gap-1.5"><Button variant="outline" size="sm" className="size-9 px-0 sm:w-auto sm:px-3" aria-label="Profile" onClick={() => navigate(`/${tenantSlug}/profile`)}><UserCircle className="size-4 sm:mr-2" /><span className="hidden sm:inline">Profile</span></Button><Button variant="outline" size="sm" className="size-9 px-0 sm:w-auto sm:px-3" aria-label="Sign out" onClick={signOut}><LogOut className="size-4 sm:mr-2" /><span className="hidden sm:inline">Sign out</span></Button></div></header>
-      <main className="min-w-0 p-4 sm:p-5 md:p-8"><div className="mx-auto min-w-0 max-w-6xl">{error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : <Outlet context={{ location }} />}</div></main>
+      <main className="min-w-0 p-4 sm:p-5 md:p-8"><div className="mx-auto min-w-0 max-w-6xl">{escalationNotice && <div className="mb-5 flex items-start justify-between gap-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><span><strong>Task escalation:</strong> {escalationNotice}</span><button type="button" className="font-semibold" onClick={() => setEscalationNotice(null)}>Dismiss</button></div>}{error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : <Outlet context={{ location }} />}</div></main>
     </div>
   </div>;
 }

@@ -24,7 +24,7 @@ function UpdatePlanForm({ plan, root, headers, onUpdated, onCancel }) {
 
 function PlanTasks({ tasks }) {
   if (!tasks.length) return <p className="rounded-lg border border-dashed bg-white p-4 text-sm text-muted-foreground">No tasks assigned yet.</p>;
-  return <div className="space-y-2">{tasks.map((task) => <div key={task._id} className="rounded-lg border bg-white p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium">{task.description}</p><p className="mt-1 text-xs text-muted-foreground">{task.assignedToUserId?.name} · Due {dateLabel(task.dueDate)}</p></div><Badge variant={task.status}>{task.status}</Badge></div><TaskOutcome task={task} /></div>)}</div>;
+  return <div className="space-y-2">{tasks.map((task) => <div key={task._id} className={`rounded-lg border bg-white p-3 ${task.isOverdue ? "border-amber-200" : ""}`}><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium">{task.description}</p><p className="mt-1 text-xs text-muted-foreground">{task.assignedToUserId?.name} · Due {dateLabel(task.dueDate)}</p></div><div className="flex gap-2"><Badge variant={task.status}>{task.status}</Badge>{task.isOverdue && <Badge variant="pending">Overdue</Badge>}</div></div><TaskOutcome task={task} /></div>)}</div>;
 }
 
 export function MyCarePlansPage() {

@@ -4,6 +4,8 @@ import { Encounter } from "../models/Encounter.js";
 import { Patient } from "../models/Patient.js";
 import { Task } from "../models/Task.js";
 import { User } from "../models/User.js";
+import { Location } from "../models/Location.js";
+import { decorateTask } from "../services/taskEscalationService.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -60,8 +62,9 @@ export const listPatientCarePlans = asyncHandler(async (req, res) => {
   const plans = await populated(CarePlan.find({ patientId: req.params.patientId, ...scope(req) }).sort({ createdAt: -1 }), req).lean();
   const tasks = await Task.find({ carePlanId: { $in: plans.map((plan) => plan._id) }, ...scope(req) })
     .populate({ path: "assignedToUserId", select: "name role", match: scope(req) }).sort({ dueDate: 1 }).lean();
+  const location = await Location.findOne({ _id: req.locationId, tenantId: req.tenantId }).select("schedulingSettings").lean();
   const byPlan = new Map();
-  for (const task of tasks) { const key = String(task.carePlanId); byPlan.set(key, [...(byPlan.get(key) || []), task]); }
+  for (const task of tasks) { const key = String(task.carePlanId); byPlan.set(key, [...(byPlan.get(key) || []), decorateTask(task, location?.schedulingSettings)]); }
   res.json({ success: true, data: { carePlans: plans.map((plan) => ({ ...plan, tasks: byPlan.get(String(plan._id)) || [] })) } });
 });
 
@@ -72,7 +75,8 @@ export const listOwnedCarePlans = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 }), req).lean();
   const tasks = await Task.find({ carePlanId: { $in: plans.map((plan) => plan._id) }, ...scope(req) })
     .populate({ path: "assignedToUserId", select: "name role", match: scope(req) }).sort({ dueDate: 1 }).lean();
+  const location = await Location.findOne({ _id: req.locationId, tenantId: req.tenantId }).select("schedulingSettings").lean();
   const byPlan = new Map();
-  for (const task of tasks) { const key = String(task.carePlanId); byPlan.set(key, [...(byPlan.get(key) || []), task]); }
+  for (const task of tasks) { const key = String(task.carePlanId); byPlan.set(key, [...(byPlan.get(key) || []), decorateTask(task, location?.schedulingSettings)]); }
   res.json({ success: true, data: { carePlans: plans.map((plan) => { const linkedTasks = byPlan.get(String(plan._id)) || []; return { ...plan, tasks: linkedTasks, taskSummary: { open: linkedTasks.filter((task) => task.status === "open").length, completed: linkedTasks.filter((task) => task.status === "completed").length, total: linkedTasks.length } }; }) } });
 });

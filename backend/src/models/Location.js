@@ -23,6 +23,8 @@ const locationSchema = new mongoose.Schema(
         type: [{ channel: { type: String, enum: ["sms", "email", "voice"], required: true }, offsetHours: { type: Number, required: true, min: 0, max: 8760 } }],
         default: () => [{ channel: "sms", offsetHours: 5 / 60 }],
       },
+      escalateToCreatorAfterDays: { type: Number, default: 3, min: 1, max: 365 },
+      flagToAdminAfterDays: { type: Number, default: 5, min: 1, max: 365 },
     },
   },
   { timestamps: { createdAt: true, updatedAt: false } },

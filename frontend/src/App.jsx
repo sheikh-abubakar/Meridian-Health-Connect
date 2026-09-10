@@ -20,6 +20,7 @@ import { MyCarePlansPage } from "@/pages/MyCarePlansPage";
 import { AuditLogPage } from "@/pages/AuditLogPage";
 import { ResourcesPage } from "@/pages/ResourcesPage";
 import { RecallRequestsPage } from "@/pages/RecallRequestsPage";
+import { OverdueTasksPage } from "@/pages/OverdueTasksPage";
 import { ClinicalTemplatesPage } from "@/pages/ClinicalTemplatesPage";
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="resources" element={<RequireRole roles={["admin"]}><ResourcesPage /></RequireRole>} />
         <Route path="clinical-templates" element={<RequireRole roles={["admin"]}><ClinicalTemplatesPage /></RequireRole>} />
         <Route path="audit-log" element={<RequireRole roles={["admin"]}><AuditLogPage /></RequireRole>} />
+        <Route path="overdue-tasks" element={<RequireRole roles={["admin"]}><OverdueTasksPage /></RequireRole>} />
         <Route path="patients" element={<RequireRole roles={["frontdesk", "admin"]}><PatientsPage /></RequireRole>} />
         <Route path="patients/:patientId" element={<RequireRole roles={["frontdesk", "admin", "doctor", "care_coordinator"]}><PatientProfilePage /></RequireRole>} />
         <Route path="scheduling" element={<RequireRole roles={["frontdesk"]}><SchedulingPage /></RequireRole>} />

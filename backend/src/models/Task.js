@@ -13,6 +13,7 @@ const taskSchema = new mongoose.Schema({
   status: { type: String, enum: ["open", "completed"], default: "open" },
   outcomeNote: { type: String, trim: true, maxlength: 5000 },
   completedAt: { type: Date },
+  escalationsSent: { type: [{ type: String, enum: ["tier2", "tier3"] }], default: [] },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 
 taskSchema.index({ tenantId: 1, locationId: 1, assignedToUserId: 1, status: 1, dueDate: 1 });

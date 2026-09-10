@@ -26,7 +26,11 @@ export const updateSchedulingSettings = asyncHandler(async (req, res) => {
   const inputRules = Array.isArray(req.body.reminderRules) ? req.body.reminderRules : [];
   const reminderRules = inputRules.map((rule) => ({ channel: String(rule.channel), offsetHours: Number(rule.offsetHours) }));
   if (reminderRules.some((rule) => rule.channel !== "sms" || !Number.isFinite(rule.offsetHours) || rule.offsetHours < 0 || rule.offsetHours > 8760)) throw new ApiError(400, "Only SMS reminders are currently supported; select an offset from 0 to 8760 hours");
-  const location = await Location.findOneAndUpdate({ _id: req.locationId, tenantId: req.tenantId }, { $set: { "schedulingSettings.maxOverbookSlotsPerDoctorPerDay": max, "schedulingSettings.reminderRules": reminderRules } }, { new: true, runValidators: true }).lean();
+  const tier2 = Number(req.body.escalateToCreatorAfterDays);
+  const tier3 = Number(req.body.flagToAdminAfterDays);
+  if (!Number.isInteger(tier2) || tier2 < 1 || tier2 > 365) throw new ApiError(400, "Creator escalation threshold must be a whole number from 1 to 365 days");
+  if (!Number.isInteger(tier3) || tier3 < tier2 || tier3 > 365) throw new ApiError(400, "Admin threshold must be a whole number at least as large as the creator threshold");
+  const location = await Location.findOneAndUpdate({ _id: req.locationId, tenantId: req.tenantId }, { $set: { "schedulingSettings.maxOverbookSlotsPerDoctorPerDay": max, "schedulingSettings.reminderRules": reminderRules, "schedulingSettings.escalateToCreatorAfterDays": tier2, "schedulingSettings.flagToAdminAfterDays": tier3 } }, { new: true, runValidators: true }).lean();
   await AuditLog.create({ ...scope(req), actorUserId: req.user._id, action: "scheduling_settings_updated", targetType: "Location", targetId: location._id });
   res.json({ success: true, data: { settings: location.schedulingSettings } });
 });

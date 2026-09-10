@@ -6,6 +6,7 @@ import { env, validateRuntimeEnv } from "./config/env.js";
 import { startRealtimeChangeStream } from "./realtime/changeStream.js";
 import { createSocketServer } from "./realtime/socketServer.js";
 import { startReminderWorker } from "./services/reminderWorker.js";
+import { startTaskEscalationWorker } from "./services/taskEscalationService.js";
 import { ensureSchedulingIndexes } from "./services/schedulingIndexService.js";
 
 async function start() {
@@ -16,6 +17,7 @@ async function start() {
   const io = createSocketServer(server);
   const changeStream = startRealtimeChangeStream(io);
   const reminderWorker = startReminderWorker();
+  const taskEscalationWorker = startTaskEscalationWorker(io);
   server.requestTimeout = 30000;
   server.headersTimeout = 35000;
   server.keepAliveTimeout = 5000;
@@ -29,6 +31,7 @@ async function start() {
     forcedExit.unref();
     await changeStream.close().catch(() => undefined);
     clearInterval(reminderWorker);
+    clearInterval(taskEscalationWorker);
     await new Promise((resolve) => io.close(resolve));
     if (server.listening) await new Promise((resolve) => server.close(resolve));
     await mongoose.disconnect();

@@ -2,6 +2,9 @@ import { Appointment } from "../models/Appointment.js";
 import { Patient } from "../models/Patient.js";
 import { User } from "../models/User.js";
 import { Encounter } from "../models/Encounter.js";
+import { Location } from "../models/Location.js";
+import { Task } from "../models/Task.js";
+import { taskEscalation } from "../services/taskEscalationService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 function utcDayBounds() {
@@ -18,7 +21,7 @@ export const getLocationAnalytics = asyncHandler(async (req, res) => {
   const trendStart = new Date(start);
   trendStart.setUTCDate(trendStart.getUTCDate() - 6);
 
-  const [patientTotal, patientToday, appointmentStatuses, appointmentStatusTotals, doctors, completedTotals, completedToday, appointmentTrend] = await Promise.all([
+  const [patientTotal, patientToday, appointmentStatuses, appointmentStatusTotals, doctors, completedTotals, completedToday, appointmentTrend, location, overdueTasks] = await Promise.all([
     Patient.countDocuments(scope),
     Patient.countDocuments({ ...scope, createdAt: { $gte: start, $lte: end } }),
     Appointment.aggregate([
@@ -46,6 +49,8 @@ export const getLocationAnalytics = asyncHandler(async (req, res) => {
       { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$scheduledAt", timezone: "UTC" } }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]),
+    Location.findOne({ _id: req.locationId, tenantId: req.tenantId }).select("schedulingSettings").lean(),
+    Task.find({ ...scope, status: "open", dueDate: { $lt: new Date() } }).select("dueDate status").lean(),
   ]);
 
   const statusCounts = Object.fromEntries(appointmentStatuses.map((entry) => [entry._id, entry.count]));
@@ -81,6 +86,7 @@ export const getLocationAnalytics = asyncHandler(async (req, res) => {
         completedToday: todayByDoctor.get(doctor._id.toString()) || 0,
         completedTotal: totalByDoctor.get(doctor._id.toString()) || 0,
       })),
+      criticallyOverdueTasks: overdueTasks.filter((task) => taskEscalation(task, location?.schedulingSettings).escalationLevel === 3).length,
     },
   });
 });

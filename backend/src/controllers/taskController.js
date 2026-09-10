@@ -5,6 +5,8 @@ import { Patient } from "../models/Patient.js";
 import { RecallRequest } from "../models/RecallRequest.js";
 import { Task } from "../models/Task.js";
 import { User } from "../models/User.js";
+import { Location } from "../models/Location.js";
+import { decorateTask, taskEscalation } from "../services/taskEscalationService.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -38,7 +40,14 @@ export const listTasks = asyncHandler(async (req, res) => {
     }
   }
   const tasks = await populateTask(Task.find(filter).sort({ status: -1, dueDate: 1 }), req).lean();
-  res.json({ success: true, data: { tasks } });
+  const location = await Location.findOne({ _id: req.locationId, tenantId: req.tenantId }).select("schedulingSettings").lean();
+  res.json({ success: true, data: { tasks: tasks.map((task) => decorateTask(task, location?.schedulingSettings)) } });
+});
+
+export const listCriticalTasks = asyncHandler(async (req, res) => {
+  const location = await Location.findOne({ _id: req.locationId, tenantId: req.tenantId }).select("schedulingSettings").lean();
+  const tasks = await populateTask(Task.find({ ...scope(req), status: "open", dueDate: { $lt: new Date() } }).sort({ dueDate: 1 }), req).lean();
+  res.json({ success: true, data: { tasks: tasks.map((task) => decorateTask(task, location?.schedulingSettings)).filter((task) => task.escalationLevel === 3) } });
 });
 
 export const completeTask = asyncHandler(async (req, res) => {

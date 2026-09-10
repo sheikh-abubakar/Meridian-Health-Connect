@@ -5,6 +5,7 @@ import { Location } from "../models/Location.js";
 import { User } from "../models/User.js";
 
 export const locationRoom = (tenantId, locationId) => `tenant:${tenantId}:location:${locationId}`;
+export const userRoom = (tenantId, userId) => `tenant:${tenantId}:user:${userId}`;
 
 export function createSocketServer(httpServer) {
   const io = new Server(httpServer, {
@@ -32,6 +33,7 @@ export function createSocketServer(httpServer) {
       socket.data.tenantId = String(user.tenantId);
       socket.data.locationId = String(locationId);
       socket.join(locationRoom(user.tenantId, locationId));
+      socket.join(userRoom(user.tenantId, user._id));
       next();
     } catch {
       next(new Error("Invalid or expired access token"));
