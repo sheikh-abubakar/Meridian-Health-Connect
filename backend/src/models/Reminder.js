@@ -5,7 +5,9 @@ const reminderSchema = new mongoose.Schema({
   locationId: { type: mongoose.Schema.Types.ObjectId, ref: "Location", required: true, index: true },
   appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: "Appointment", required: true, index: true },
   patientId: { type: mongoose.Schema.Types.ObjectId, ref: "Patient", required: true },
-  actorUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  // Staff-created reminders retain actorUserId; portal-created appointments have a patient actor instead.
+  actorUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  actorPatientId: { type: mongoose.Schema.Types.ObjectId, ref: "Patient" },
   channel: { type: String, enum: ["sms", "email", "voice"], required: true },
   scheduledFor: { type: Date, required: true },
   status: { type: String, enum: ["scheduled", "sending", "submitted", "delivered", "failed", "expired", "skipped_opt_out", "skipped_invalid_contact", "cancelled"], default: "scheduled" },

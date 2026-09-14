@@ -6,7 +6,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 
 const scope = (req) => ({ tenantId: req.tenantId, locationId: req.locationId });
 const serializeSpecialty = (item) => ({ id: item._id, name: item.name, isActive: item.isActive });
-const serializeVisitType = (item) => ({ id: item._id, name: item.name, durationMinutes: item.durationMinutes, requiredResourceType: item.requiredResourceType || null, specialtyIds: (item.specialtyIds || []).map((specialty) => specialty._id ? String(specialty._id) : String(specialty)), specialties: (item.specialtyIds || []).filter((specialty) => specialty.name).map((specialty) => ({ id: String(specialty._id), name: specialty.name })) });
+const serializeVisitType = (item) => ({ id: item._id, name: item.name, durationMinutes: item.durationMinutes, requiredResourceType: item.requiredResourceType || null, patientSelfSchedulingEnabled: Boolean(item.patientSelfSchedulingEnabled), specialtyIds: (item.specialtyIds || []).map((specialty) => specialty._id ? String(specialty._id) : String(specialty)), specialties: (item.specialtyIds || []).filter((specialty) => specialty.name).map((specialty) => ({ id: String(specialty._id), name: specialty.name })) });
 
 export const listSpecialties = asyncHandler(async (req, res) => {
   const specialties = await Specialty.find({ tenantId: req.tenantId, isActive: { $ne: false } }).sort({ name: 1 }).lean();
@@ -39,4 +39,13 @@ export const createVisitType = asyncHandler(async (req, res) => {
   const populated = await VisitType.findById(visitType._id).populate("specialtyIds", "name").lean();
   await AuditLog.create({ ...scope(req), actorUserId: req.user._id, action: "visit_type_created", targetType: "VisitType", targetId: visitType._id });
   res.status(201).json({ success: true, data: { visitType: serializeVisitType(populated) } });
+});
+export const updateVisitType = asyncHandler(async (req, res) => {
+  const visitType = await VisitType.findOne({ _id: req.params.id, ...scope(req) });
+  if (!visitType) throw new ApiError(404, "Visit type not found in this location");
+  if (Object.hasOwn(req.body, "patientSelfSchedulingEnabled")) visitType.patientSelfSchedulingEnabled = Boolean(req.body.patientSelfSchedulingEnabled);
+  await visitType.save();
+  const populated = await VisitType.findById(visitType._id).populate("specialtyIds", "name").lean();
+  await AuditLog.create({ ...scope(req), actorUserId: req.user._id, action: "visit_type_self_scheduling_updated", targetType: "VisitType", targetId: visitType._id });
+  res.json({ success: true, data: { visitType: serializeVisitType(populated) } });
 });

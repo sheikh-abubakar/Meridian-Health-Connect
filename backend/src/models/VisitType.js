@@ -8,6 +8,7 @@ const visitTypeSchema = new mongoose.Schema({
   durationMinutes: { type: Number, required: true, min: 5, max: 480 },
   requiredResourceType: { type: String, enum: ["room", "equipment", "telehealth_link", null], default: null },
   isActive: { type: Boolean, default: true },
+  patientSelfSchedulingEnabled: { type: Boolean, default: false },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 
 visitTypeSchema.index({ tenantId: 1, locationId: 1, name: 1 }, { unique: true });

@@ -25,6 +25,7 @@ const locationSchema = new mongoose.Schema(
       },
       escalateToCreatorAfterDays: { type: Number, default: 3, min: 1, max: 365 },
       flagToAdminAfterDays: { type: Number, default: 5, min: 1, max: 365 },
+      selfSchedulingBlackouts: [{ startDate: { type: String, required: true }, endDate: { type: String, required: true } }],
     },
   },
   { timestamps: { createdAt: true, updatedAt: false } },

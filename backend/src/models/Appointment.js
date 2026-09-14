@@ -29,7 +29,8 @@ const appointmentSchema = new mongoose.Schema(
       actorUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       timestamp: { type: Date },
     },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    bookedBy: { type: String, enum: ["staff", "patient"], default: "staff" },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

@@ -632,6 +632,11 @@ export function SchedulingPage() {
                           <Badge variant={item.status} className="capitalize">
                             {item.status.replace("_", " ")}
                           </Badge>
+                          {item.bookedBy === "patient" && (
+                            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-800">
+                              Patient-booked
+                            </span>
+                          )}
                           {item.isOverbooked && (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                               Overbooked
@@ -740,4 +745,3 @@ export function SchedulingPage() {
     </div>
   );
 }
-

@@ -9,6 +9,11 @@ import { hashPassword, verifyPassword } from "../services/passwordService.js";
 import { sendPortalInvite } from "../services/portalEmailService.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { Appointment } from "../models/Appointment.js";
+import { Availability } from "../models/Availability.js";
+import { User } from "../models/User.js";
+import { VisitType } from "../models/VisitType.js";
+import { bookAppointment } from "../services/appointmentBookingService.js";
 
 const cleanEmail = (value) => String(value || "").trim().toLowerCase();
 const activationError = () => new ApiError(400, "This activation link is invalid, expired, or has already been used. Please contact your clinic for a new invitation.");
@@ -64,4 +69,36 @@ export const patientPortalLogin = asyncHandler(async (req, res) => {
 export const patientPortalSession = asyncHandler(async (req, res) => {
   const [tenant, location] = await Promise.all([Tenant.findById(req.tenantId).lean(), Location.findOne({ _id: req.locationId, tenantId: req.tenantId }).lean()]);
   res.json({ success: true, data: { patient: { id: req.portalPatient._id, name: req.portalPatient.name }, clinic: { name: tenant?.name || "Your clinic", branchName: location?.name || "Your branch" } } });
+});
+
+const appointmentView = (item) => ({ id: item._id, scheduledAt: item.scheduledAt, visitType: item.visitType, status: item.status, doctor: item.doctorId?.name || "Your clinician", bookedBy: item.bookedBy || "staff" });
+export const patientPortalAppointments = asyncHandler(async (req, res) => {
+  const now = new Date(); const items = await Appointment.find({ tenantId: req.tenantId, locationId: req.locationId, patientId: req.portalPatient._id }).populate({ path: "doctorId", select: "name", match: { tenantId: req.tenantId, locationId: req.locationId } }).sort({ scheduledAt: -1 }).lean();
+  res.json({ success: true, data: { upcoming: items.filter((item) => item.scheduledAt >= now && ["scheduled", "checked_in"].includes(item.status)).sort((a, b) => a.scheduledAt - b.scheduledAt).map(appointmentView), past: items.filter((item) => item.scheduledAt < now || ["completed", "cancelled", "no_show"].includes(item.status)).map(appointmentView) } });
+});
+function isBlackout(date, windows) { return (windows || []).some((window) => date >= window.startDate && date <= window.endDate); }
+export const patientPortalBookingOptions = asyncHandler(async (req, res) => {
+  const location = await Location.findOne({ _id: req.locationId, tenantId: req.tenantId }).lean(); const visitTypes = await VisitType.find({ tenantId: req.tenantId, locationId: req.locationId, isActive: { $ne: false }, patientSelfSchedulingEnabled: true }).lean();
+  const doctors = await User.find({ tenantId: req.tenantId, locationId: req.locationId, role: "doctor", isActive: { $ne: false } }).select("name specialtyIds").lean();
+  const availability = await Availability.find({ tenantId: req.tenantId, locationId: req.locationId }).lean();
+  const blackoutWindows = location?.schedulingSettings?.selfSchedulingBlackouts || [];
+  const data = { visitTypes: visitTypes.map((item) => ({ id: item._id, name: item.name, durationMinutes: item.durationMinutes, specialtyIds: item.specialtyIds.map(String) })), doctors: doctors.map((doctor) => ({ id: doctor._id, name: doctor.name, specialtyIds: (doctor.specialtyIds || []).map(String), slots: availability.find((item) => String(item.doctorId) === String(doctor._id))?.slots || [] })), blackoutWindows };
+  const { visitTypeId, doctorId, date } = req.query;
+  if (visitTypeId && doctorId && /^\d{4}-\d{2}-\d{2}$/.test(date || "")) {
+    const visitType = visitTypes.find((item) => String(item._id) === String(visitTypeId));
+    const doctor = doctors.find((item) => String(item._id) === String(doctorId));
+    if (!visitType || !doctor || !(visitType.specialtyIds || []).some((id) => (doctor.specialtyIds || []).map(String).includes(String(id)))) throw new ApiError(400, "Choose a valid visit type and clinician");
+    if (isBlackout(date, blackoutWindows)) data.availableTimes = [];
+    else {
+      const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay(); const slots = availability.find((item) => String(item.doctorId) === String(doctor._id))?.slots || [];
+      const existing = await Appointment.find({ tenantId: req.tenantId, locationId: req.locationId, doctorId: doctor._id, status: { $in: ["scheduled", "checked_in"] } }).select("scheduledAt durationMinutes").lean();
+      data.availableTimes = slots.filter((slot) => slot.dayOfWeek === dayOfWeek).flatMap((slot) => { const [sh, sm] = slot.startTime.split(":").map(Number); const [eh, em] = slot.endTime.split(":").map(Number); const results = []; for (let minute = sh * 60 + sm; minute + visitType.durationMinutes <= eh * 60 + em; minute += visitType.durationMinutes) { const time = `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`; const start = new Date(`${date}T${time}:00+05:00`); const end = new Date(start.getTime() + visitType.durationMinutes * 60000); if (!existing.some((item) => new Date(item.scheduledAt) < end && new Date(item.scheduledAt).getTime() + (item.durationMinutes || 30) * 60000 > start.getTime())) results.push(time); } return results; });
+    }
+  }
+  res.json({ success: true, data });
+});
+export const patientPortalBookAppointment = asyncHandler(async (req, res) => {
+  const appointment = await bookAppointment({ tenantId: req.tenantId, locationId: req.locationId, actorPatientId: req.portalPatient._id, selfScheduling: true, payload: { ...req.body, patientId: req.portalPatient._id } });
+  const item = await Appointment.findOne({ _id: appointment._id, tenantId: req.tenantId, locationId: req.locationId }).populate({ path: "doctorId", select: "name" }).lean();
+  res.status(201).json({ success: true, data: { appointment: appointmentView(item) } });
 });

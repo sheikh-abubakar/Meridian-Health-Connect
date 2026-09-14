@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, Building2, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,7 +36,7 @@ export function LoginPage() {
             <div className="space-y-1.5"><div className="flex items-center justify-between"><Label htmlFor="password">Password</Label><span className="text-[11px] text-muted-foreground">Case-sensitive</span></div><div className="relative"><LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><Input className="h-11 bg-slate-50/80 pl-10 pr-12 transition focus-visible:bg-white" id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} required /><button type="button" className="absolute right-1.5 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-md text-slate-500 transition hover:bg-white hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} title={showPassword ? "Hide password" : "Show password"}>{showPassword ? <Eye className="password-eye-open size-[18px]" /> : <EyeOff className="password-eye-closed size-[18px]" />}</button></div></div>
             {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700"><ShieldCheck className="mt-0.5 size-4 shrink-0" />{error}</div>}
             <Button className="group h-11 w-full bg-teal-700 text-sm font-semibold shadow-[0_10px_25px_-12px_rgba(15,118,110,.8)] transition hover:bg-teal-800 hover:shadow-[0_13px_30px_-12px_rgba(15,118,110,.9)]" type="submit" disabled={submitting}>{submitting ? "Signing you in…" : "Sign in securely"}<ArrowRight className={`ml-2 size-4 transition-transform ${submitting ? "translate-x-1" : "group-hover:translate-x-1"}`} /></Button>
-          </form><div className="mt-5 flex items-center justify-center gap-2 border-t pt-4 text-center text-[11px] text-muted-foreground"><ShieldCheck className="size-3.5 text-teal-700" /> Clinic workspace selected automatically after sign-in</div></CardContent>
+          </form><div className="mt-5 flex items-center justify-center gap-2 border-t pt-4 text-center text-[11px] text-muted-foreground"><ShieldCheck className="size-3.5 text-teal-700" /> Clinic workspace selected automatically after sign-in</div><p className="mt-3 text-center text-sm text-slate-600">Looking for the patient portal instead? <Link className="font-semibold text-teal-700 underline" to="/portal/login">Patient Portal Login</Link></p></CardContent>
         </Card>
         <p className="mt-3 text-center text-[11px] text-slate-400">Authorized use only · Meridian Health Connect</p>
       </div>

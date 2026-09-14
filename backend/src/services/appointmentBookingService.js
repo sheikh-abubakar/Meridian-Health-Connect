@@ -7,13 +7,32 @@ import { Resource } from "../models/Resource.js";
 import { Location } from "../models/Location.js";
 import { Reminder } from "../models/Reminder.js";
 import { VisitType } from "../models/VisitType.js";
+import { SchedulingSlotLock } from "../models/SchedulingSlotLock.js";
 import { isRangeWithinAvailability, parseClinicDateTime } from "./availabilityService.js";
 import { mockEligibilityCheck } from "./mockEligibility.js";
 import { ApiError } from "../utils/ApiError.js";
 
 const useSession = (query, session) => session ? query.session(session) : query;
+let schedulingLockIndexReady;
+const ensureSchedulingLockIndex = () => (schedulingLockIndexReady ||= SchedulingSlotLock.init());
 
-export async function bookAppointment({ tenantId, locationId, actorUserId, payload, session = null }) {
+export async function bookAppointment({ tenantId, locationId, actorUserId, actorPatientId = null, payload, session = null, selfScheduling = false }) {
+  // All appointment writes run in one MongoDB transaction. The unique slot-lock index
+  // makes the final reservation atomic even when two confirmations arrive together.
+  if (!session) {
+    await ensureSchedulingLockIndex();
+    const transactionSession = await mongoose.startSession();
+    try {
+      let appointment;
+      await transactionSession.withTransaction(async () => {
+        appointment = await bookAppointment({ tenantId, locationId, actorUserId, actorPatientId, payload, session: transactionSession, selfScheduling });
+      });
+      return appointment;
+    } catch (error) {
+      if (error?.code === 11000) throw new ApiError(409, selfScheduling ? "That time was just booked by another patient. Please choose another available time." : "That time was just booked. Refresh availability and choose another time.");
+      throw error;
+    } finally { await transactionSession.endSession(); }
+  }
   const patient = await useSession(Patient.findOne({ _id: payload.patientId, tenantId, locationId }), session).lean();
   if (!patient) throw new ApiError(404, "Patient not found in this location");
 
@@ -25,6 +44,7 @@ export async function bookAppointment({ tenantId, locationId, actorUserId, paylo
   if (payload.visitTypeId) {
     const configured = await useSession(VisitType.findOne({ _id: payload.visitTypeId, tenantId, locationId, isActive: { $ne: false } }), session).lean();
     if (!configured) throw new ApiError(404, "Selected visit type is not available in this location");
+    if (selfScheduling && !configured.patientSelfSchedulingEnabled) throw new ApiError(403, "This visit type is not available for online booking");
     const doctorSpecialties = (doctor.specialtyIds || []).map(String);
     if (!configured.specialtyIds.some((id) => doctorSpecialties.includes(String(id)))) throw new ApiError(400, "Selected Doctor is not eligible for this visit type");
     visitType = configured.name; visitTypeId = configured._id; durationMinutes = configured.durationMinutes; requiredResourceType = configured.requiredResourceType;
@@ -36,6 +56,8 @@ export async function bookAppointment({ tenantId, locationId, actorUserId, paylo
   if (!isRangeWithinAvailability(availability.slots, dayOfWeek, time, durationMinutes)) throw new ApiError(400, `The full ${durationMinutes}-minute visit must fit within the Doctor's availability`);
 
   const location = await useSession(Location.findOne({ _id: locationId, tenantId }), session).lean();
+  const clinicDate = String(payload.scheduledAt || "").slice(0, 10);
+  if (selfScheduling && (location?.schedulingSettings?.selfSchedulingBlackouts || []).some((item) => clinicDate >= item.startDate && clinicDate <= item.endDate)) throw new ApiError(400, "Online booking is not available on this date. Please choose another day.");
   const activeStatuses = { $in: ["scheduled", "checked_in"] };
   const endAt = new Date(scheduledAt.getTime() + durationMinutes * 60 * 1000);
   const overlaps = (entry) => new Date(entry.scheduledAt).getTime() < endAt.getTime() && new Date(entry.scheduledAt).getTime() + (entry.durationMinutes || 30) * 60 * 1000 > scheduledAt.getTime();
@@ -47,12 +69,21 @@ export async function bookAppointment({ tenantId, locationId, actorUserId, paylo
     if (!resource) throw new ApiError(404, "Selected resource is not available in this location");
     resourceConflicts = (await useSession(Appointment.find({ tenantId, locationId, resourceId: resource._id, status: activeStatuses }).select("_id scheduledAt durationMinutes").lean(), session)).filter(overlaps);
   }
+  if (selfScheduling && requiredResourceType && !resource) {
+    const candidates = await useSession(Resource.find({ tenantId, locationId, type: requiredResourceType, isActive: true }), session).lean();
+    for (const candidate of candidates) {
+      const conflicts = (await useSession(Appointment.find({ tenantId, locationId, resourceId: candidate._id, status: activeStatuses }).select("_id scheduledAt durationMinutes").lean(), session)).filter(overlaps);
+      if (!conflicts.length) { resource = candidate; resourceConflicts = []; break; }
+    }
+    if (!resource) throw new ApiError(409, `No ${requiredResourceType.replaceAll("_", " ")} is available for that appointment time.`);
+  }
   if (requiredResourceType && !resource) throw new ApiError(400, `This visit type requires a ${requiredResourceType.replaceAll("_", " ")}`);
   if (requiredResourceType && resource.type !== requiredResourceType) throw new ApiError(400, `This visit type requires a ${requiredResourceType.replaceAll("_", " ")}`);
   const conflictTypes = [...(doctorConflicts.length ? ["doctor"] : []), ...(resourceConflicts.length ? ["resource"] : [])];
   const overrideReason = String(payload.overrideReason || "").trim();
   let isOverbooked = false;
   if (conflictTypes.length) {
+    if (selfScheduling) throw new ApiError(409, "That appointment time was just taken. Please choose another available time.");
     if (!overrideReason) throw new ApiError(409, "Scheduling conflict detected. Use the explicit override flow and provide a reason to continue.", { conflictTypes, doctorConflictCount: doctorConflicts.length, resourceConflictCount: resourceConflicts.length });
     if (overrideReason.length < 3) throw new ApiError(400, "Override reason must be at least 3 characters");
     if (doctorConflicts.length) {
@@ -65,16 +96,34 @@ export async function bookAppointment({ tenantId, locationId, actorUserId, paylo
     }
   }
 
-  const appointment = new Appointment({ tenantId, locationId, patientId: patient._id, doctorId: doctor._id, visitType, visitTypeId, durationMinutes, scheduledAt, resourceId: resource?._id, isOverbooked, override: conflictTypes.length ? { reason: overrideReason, conflictTypes, conflictingAppointmentIds: [...doctorConflicts, ...resourceConflicts].map((item) => item._id), actorUserId, timestamp: new Date() } : undefined, eligibilityStatus: mockEligibilityCheck(patient), eligibilityCheckedAt: new Date(), createdBy: actorUserId });
+  const appointment = new Appointment({ tenantId, locationId, patientId: patient._id, doctorId: doctor._id, visitType, visitTypeId, durationMinutes, scheduledAt, resourceId: resource?._id, isOverbooked, override: conflictTypes.length ? { reason: overrideReason, conflictTypes, conflictingAppointmentIds: [...doctorConflicts, ...resourceConflicts].map((item) => item._id), actorUserId, timestamp: new Date() } : undefined, eligibilityStatus: mockEligibilityCheck(patient), eligibilityCheckedAt: new Date(), createdBy: actorUserId || undefined, bookedBy: selfScheduling ? "patient" : "staff" });
+  if (!isOverbooked) {
+    const capacityKeys = [`doctor:${doctor._id}`, ...(resource ? [`resource:${resource._id}`] : [])];
+    const locks = [];
+    for (let minute = 0; minute < durationMinutes; minute += 1) for (const capacityKey of capacityKeys) locks.push({ tenantId, locationId, capacityKey, slotAt: new Date(scheduledAt.getTime() + minute * 60000), appointmentId: appointment._id });
+    try {
+      await SchedulingSlotLock.insertMany(locks, { session, ordered: true });
+    } catch (error) {
+      if (error?.code === 11000) throw new ApiError(409, selfScheduling ? "That time was just booked by another patient. Please choose another available time." : "That time was just booked. Refresh availability and choose another time.");
+      throw error;
+    }
+  }
   await appointment.save({ session: session || undefined });
-  const audits = [{ tenantId, locationId, actorUserId, action: "appointment_booked", targetType: "Appointment", targetId: appointment._id }];
+  const audits = [{ tenantId, locationId, ...(actorUserId ? { actorUserId } : { actorPatientId }), action: selfScheduling ? "patient_portal_appointment_booked" : "appointment_booked", targetType: "Appointment", targetId: appointment._id }];
   if (conflictTypes.length) audits.push({ tenantId, locationId, actorUserId, action: "appointment_override_recorded", targetType: "Appointment", targetId: appointment._id });
   // Voice and email remain future integrations. Only an explicit SMS rule creates a real reminder.
   const rules = (location?.schedulingSettings?.reminderRules || []).filter((rule) => rule.channel === "sms");
-  const reminders = rules.map((rule) => ({ tenantId, locationId, appointmentId: appointment._id, patientId: patient._id, actorUserId, channel: rule.channel, scheduledFor: new Date(scheduledAt.getTime() - rule.offsetHours * 60 * 60 * 1000), status: patient.communicationPreferences?.smsOptOut ? "skipped_opt_out" : "scheduled", detail: patient.communicationPreferences?.smsOptOut ? "Patient opted out of SMS reminders." : "SMS reminder scheduled." }));
+  const reminders = rules.map((rule) => ({ tenantId, locationId, appointmentId: appointment._id, patientId: patient._id, ...(actorUserId ? { actorUserId } : { actorPatientId }), channel: rule.channel, scheduledFor: new Date(scheduledAt.getTime() - rule.offsetHours * 60 * 60 * 1000), status: patient.communicationPreferences?.smsOptOut ? "skipped_opt_out" : "scheduled", detail: patient.communicationPreferences?.smsOptOut ? "Patient opted out of SMS reminders." : "SMS reminder scheduled." }));
   if (reminders.length) await Reminder.insertMany(reminders, { session: session || undefined, ordered: true });
-  if (reminders.length) audits.push({ tenantId, locationId, actorUserId, action: "reminders_scheduled", targetType: "Appointment", targetId: appointment._id });
+  if (reminders.length) audits.push({ tenantId, locationId, ...(actorUserId ? { actorUserId } : { actorPatientId }), action: "reminders_scheduled", targetType: "Appointment", targetId: appointment._id });
   if (session) await AuditLog.create(audits, { session, ordered: true });
   else await AuditLog.create(audits);
   return appointment;
 }
+
+export async function releaseAppointmentSlotLocks({ tenantId, locationId, appointmentId, session = null }) {
+  const query = SchedulingSlotLock.deleteMany({ tenantId, locationId, appointmentId });
+  if (session) query.session(session);
+  await query;
+}
+import mongoose from "mongoose";

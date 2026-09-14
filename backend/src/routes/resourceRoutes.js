@@ -3,7 +3,7 @@ import { createResource, listResources, updateSchedulingSettings } from "../cont
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeLocationAccess } from "../middleware/authorizeLocationAccess.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
-import { createSpecialty, createVisitType, listSpecialties, listVisitTypes } from "../controllers/schedulingSetupController.js";
+import { createSpecialty, createVisitType, listSpecialties, listVisitTypes, updateVisitType } from "../controllers/schedulingSetupController.js";
 import { createEncounterTemplate, listEncounterTemplates, updateEncounterTemplate } from "../controllers/encounterTemplateController.js";
 export const resourceRouter = Router({ mergeParams: true });
 resourceRouter.use(authenticate, authorizeLocationAccess);
@@ -14,6 +14,7 @@ resourceRouter.get("/encounter-templates", authorizeRoles("admin"), listEncounte
 resourceRouter.post("/", authorizeRoles("admin"), createResource);
 resourceRouter.post("/specialties", authorizeRoles("admin"), createSpecialty);
 resourceRouter.post("/visit-types", authorizeRoles("admin"), createVisitType);
+resourceRouter.patch("/visit-types/:id", authorizeRoles("admin"), updateVisitType);
 resourceRouter.post("/encounter-templates", authorizeRoles("admin"), createEncounterTemplate);
 resourceRouter.patch("/encounter-templates/:id", authorizeRoles("admin"), updateEncounterTemplate);
 resourceRouter.patch("/settings", authorizeRoles("admin"), updateSchedulingSettings);

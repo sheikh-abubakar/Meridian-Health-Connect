@@ -25,9 +25,11 @@ import { ClinicalTemplatesPage } from "@/pages/ClinicalTemplatesPage";
 import { PortalLoginPage } from "@/pages/PortalLoginPage";
 import { PortalActivationPage } from "@/pages/PortalActivationPage";
 import { PortalDashboardPage } from "@/pages/PortalDashboardPage";
+import { LandingPage } from "@/pages/LandingPage";
 
 export default function App() {
   return <Routes>
+    <Route path="/" element={<LandingPage />} />
     <Route path="/portal/login" element={<PortalLoginPage />} />
     <Route path="/portal/activate/:token" element={<PortalActivationPage />} />
     <Route path="/portal" element={<PortalDashboardPage />} />
@@ -55,6 +57,6 @@ export default function App() {
         <Route path="encounters/:encounterId" element={<RequireRole roles={["doctor"]}><EncounterPage /></RequireRole>} />
       </Route>
     </Route>
-    <Route path="*" element={<Navigate to="/login" replace />} />
+    <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
 }
