@@ -16,6 +16,8 @@ function serializePatient(patient) {
     insuranceProvider: patient.insuranceInfo?.provider || "",
     policyNumber: patient.insuranceInfo?.policyNumber || "",
     communicationPreferences: patient.communicationPreferences || { smsOptOut: false, emailOptOut: false, voiceOptOut: false },
+    portalActivated: Boolean(patient.portalActivated),
+    portalEmail: patient.portalEmail || "",
     createdAt: patient.createdAt,
   };
 }

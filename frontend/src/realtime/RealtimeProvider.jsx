@@ -10,7 +10,7 @@ export function RealtimeProvider({ children }) {
   const { session } = useAuth(); const { pathname } = useLocation(); const [status, setStatus] = useState("disconnected");
   const locationSlug = pathname.split("/").filter(Boolean)[1] || "";
   useEffect(() => {
-    if (!session?.accessToken || !locationSlug || ["overview", "profile"].includes(locationSlug)) { setStatus("disconnected"); return undefined; }
+    if (!session?.accessToken || pathname.startsWith("/portal") || !locationSlug || ["overview", "profile"].includes(locationSlug)) { setStatus("disconnected"); return undefined; }
     setStatus("connecting");
     const socket = io(SOCKET_URL, { auth: { token: session.accessToken, locationSlug }, reconnection: true, reconnectionDelay: 700, reconnectionDelayMax: 5000 });
     socket.on("connect", () => setStatus("connected")); socket.on("disconnect", () => setStatus("disconnected")); socket.on("connect_error", () => setStatus("disconnected"));

@@ -61,7 +61,7 @@ export const listAuditLogs = asyncHandler(async (req, res) => {
     if (req.query.from) { const from = new Date(`${req.query.from}T00:00:00.000Z`); if (Number.isNaN(from.getTime())) throw new ApiError(400, "Invalid from date"); filter.timestamp.$gte = from; }
     if (req.query.to) { const to = new Date(`${req.query.to}T23:59:59.999Z`); if (Number.isNaN(to.getTime())) throw new ApiError(400, "Invalid to date"); filter.timestamp.$lte = to; }
   }
-  const logs = await AuditLog.find(filter).populate({ path: "actorUserId", select: "name email role", match: { tenantId: req.tenantId } }).sort({ timestamp: -1 }).limit(500).lean();
+  const logs = await AuditLog.find(filter).populate({ path: "actorUserId", select: "name email role", match: { tenantId: req.tenantId } }).populate({ path: "actorPatientId", select: "name contact.email", match: scope(req) }).sort({ timestamp: -1 }).limit(500).lean();
   const targets = await resolveTargets(logs, req);
-  res.json({ success: true, data: { auditLogs: logs.map((log) => ({ id: log._id, actor: log.actorUserId ? { id: log.actorUserId._id, name: log.actorUserId.name, email: log.actorUserId.email, role: log.actorUserId.role } : null, action: log.action, target: { type: log.targetType, id: log.targetId, label: targetLabel(log.targetType, targets.get(`${log.targetType}:${log.targetId}`)) }, timestamp: log.timestamp })) } });
+  res.json({ success: true, data: { auditLogs: logs.map((log) => ({ id: log._id, actor: log.actorUserId ? { id: log.actorUserId._id, name: log.actorUserId.name, email: log.actorUserId.email, role: log.actorUserId.role } : log.actorPatientId ? { id: log.actorPatientId._id, name: log.actorPatientId.name, email: log.actorPatientId.contact?.email || "", role: "patient" } : null, action: log.action, target: { type: log.targetType, id: log.targetId, label: targetLabel(log.targetType, targets.get(`${log.targetType}:${log.targetId}`)) }, timestamp: log.timestamp })) } });
 });

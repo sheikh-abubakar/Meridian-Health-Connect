@@ -25,6 +25,7 @@ import { resourceRouter } from "./routes/resourceRoutes.js";
 import { waitlistRouter } from "./routes/waitlistRoutes.js";
 import { reminderRouter } from "./routes/reminderRoutes.js";
 import { receiveMoceanDeliveryReceipt } from "./controllers/moceanWebhookController.js";
+import { patientPortalRouter } from "./routes/patientPortalRoutes.js";
 
 export const app = express();
 
@@ -58,6 +59,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", publicAuthRouter);
+app.use("/api/patient-portal", patientPortalRouter);
 app.use("/api/:tenantSlug/auth", resolveTenant, authRouter);
 app.use("/api/:tenantSlug/profile", resolveTenant, profileRouter);
 app.use("/api/:tenantSlug/overview", resolveTenant, overviewRouter);

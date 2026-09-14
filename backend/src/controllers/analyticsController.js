@@ -21,9 +21,11 @@ export const getLocationAnalytics = asyncHandler(async (req, res) => {
   const trendStart = new Date(start);
   trendStart.setUTCDate(trendStart.getUTCDate() - 6);
 
-  const [patientTotal, patientToday, appointmentStatuses, appointmentStatusTotals, doctors, completedTotals, completedToday, appointmentTrend, location, overdueTasks] = await Promise.all([
+  const [patientTotal, patientToday, portalInvited, portalActivated, appointmentStatuses, appointmentStatusTotals, doctors, completedTotals, completedToday, appointmentTrend, location, overdueTasks] = await Promise.all([
     Patient.countDocuments(scope),
     Patient.countDocuments({ ...scope, createdAt: { $gte: start, $lte: end } }),
+    Patient.countDocuments({ ...scope, portalEmail: { $exists: true, $ne: "" } }),
+    Patient.countDocuments({ ...scope, portalActivated: true }),
     Appointment.aggregate([
       { $match: { ...scope, scheduledAt: { $gte: start, $lte: end } } },
       { $group: { _id: "$status", count: { $sum: 1 } } },
@@ -62,6 +64,7 @@ export const getLocationAnalytics = asyncHandler(async (req, res) => {
     success: true,
     data: {
       patients: { today: patientToday, total: patientTotal },
+      patientPortal: { invited: portalInvited, activated: portalActivated },
       appointmentsToday: {
         scheduled: statusCounts.scheduled || 0,
         checkedIn: statusCounts.checked_in || 0,

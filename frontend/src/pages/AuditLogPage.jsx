@@ -17,8 +17,12 @@ const actionLabels = { user_logged_in: "User logged in", user_created: "Staff me
 const actionTone = (action) => action.includes("completed") || action.includes("finalized") ? "completed" : action.includes("created") || action.includes("booked") || action.includes("started") ? "checked_in" : action.includes("removed") ? "cancelled" : "default";
 actions.push("encounter_template_created", "encounter_template_updated", "encounter_template_required_override", "encounter_attachment_uploaded", "encounter_attachment_removed", "encounter_attachment_viewed");
 actions.push("task_escalated_tier2", "task_escalated_tier3");
+actions.push("patient_portal_invite_sent");
+actions.push("patient_portal_activated", "patient_portal_logged_in");
 Object.assign(actionLabels, { encounter_template_created: "Clinical template created", encounter_template_updated: "Clinical template updated", encounter_template_required_override: "Required template field overridden", encounter_attachment_uploaded: "Clinical attachment uploaded", encounter_attachment_removed: "Clinical attachment removed", encounter_attachment_viewed: "Clinical attachment viewed" });
 Object.assign(actionLabels, { task_escalated_tier2: "Task escalated to creator", task_escalated_tier3: "Task flagged as critically overdue" });
+Object.assign(actionLabels, { patient_portal_invite_sent: "Patient portal invitation sent" });
+Object.assign(actionLabels, { patient_portal_activated: "Patient portal account activated", patient_portal_logged_in: "Patient portal signed in" });
 const timestamp = (value) => new Intl.DateTimeFormat("en-PK", { dateStyle: "medium", timeStyle: "short", hour12: true }).format(new Date(value));
 
 export function AuditLogPage() {

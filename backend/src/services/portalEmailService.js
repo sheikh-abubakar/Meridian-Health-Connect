@@ -1,0 +1,8 @@
+import nodemailer from "nodemailer";
+import { env } from "../config/env.js";
+
+const transporter = nodemailer.createTransport({ host: env.emailHost, port: env.emailPort, secure: env.emailPort === 465, auth: { user: env.emailUser, pass: env.emailPass } });
+
+export async function sendPortalInvite({ recipient, patientName, clinicName, activationUrl }) {
+  await transporter.sendMail({ from: env.emailFrom, to: recipient, subject: `Activate your ${clinicName} patient portal`, text: `Hello ${patientName}, activate your patient portal account: ${activationUrl}. This link expires in 48 hours.`, html: `<main style="max-width:600px;margin:auto;background:#f8fafc;padding:28px;font-family:Arial,sans-serif;color:#0f172a"><section style="background:#ffffff;border-radius:16px;padding:32px;border:1px solid #e2e8f0"><div style="font-weight:700;font-size:20px;color:#0f766e">${clinicName}</div><h1 style="font-size:26px;line-height:1.25;margin:28px 0 12px">Your patient portal is ready</h1><p style="font-size:16px;line-height:1.6">Hello ${patientName}, your clinic has invited you to securely access your patient portal.</p><p style="font-size:16px;line-height:1.6">Set a password to activate your account. The portal will make it easier to stay connected with your care as new features become available.</p><p style="margin:28px 0"><a href="${activationUrl}" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:8px">Activate your account</a></p><p style="font-size:13px;line-height:1.5;color:#475569">For your security, this link expires in 48 hours. If you did not expect this email, you can safely ignore it.</p></section></main>` });
+}

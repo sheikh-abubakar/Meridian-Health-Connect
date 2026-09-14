@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { createPatient, getPatient, listPatients, searchPatients, updateCommunicationPreferences, updatePatient, addRelatedParty, removeRelatedParty, linkHouseholdMember, unlinkHouseholdMember } from "../controllers/patientController.js";
+import { invitePatientToPortal } from "../controllers/patientPortalController.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorizeLocationAccess } from "../middleware/authorizeLocationAccess.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
@@ -15,6 +16,7 @@ patientRouter.post("/", authorizeRoles("frontdesk"), createPatient);
 patientRouter.patch("/:id", authorizeRoles("frontdesk", "admin"), updatePatient);
 patientRouter.patch("/:id/communication-preferences", authorizeRoles("frontdesk", "admin"), updateCommunicationPreferences);
 patientRouter.post("/:id/related-parties", authorizeRoles("frontdesk", "admin"), addRelatedParty);
+patientRouter.post("/:id/portal-invite", authorizeRoles("frontdesk", "admin"), invitePatientToPortal);
 patientRouter.delete("/:id/related-parties/:entryId", authorizeRoles("frontdesk", "admin"), removeRelatedParty);
 patientRouter.post("/:id/household", authorizeRoles("frontdesk", "admin"), linkHouseholdMember);
 patientRouter.delete("/:id/household/:otherPatientId", authorizeRoles("frontdesk", "admin"), unlinkHouseholdMember);

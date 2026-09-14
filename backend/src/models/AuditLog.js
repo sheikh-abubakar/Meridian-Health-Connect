@@ -16,8 +16,8 @@ const auditLogSchema = new mongoose.Schema(
     actorUserId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
     },
+    actorPatientId: { type: mongoose.Schema.Types.ObjectId, ref: "Patient" },
     action: { type: String, required: true, trim: true },
     targetType: { type: String, required: true, trim: true },
     targetId: { type: mongoose.Schema.Types.ObjectId, required: true },

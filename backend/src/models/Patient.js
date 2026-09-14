@@ -19,6 +19,11 @@ const patientSchema = new mongoose.Schema(
       emailOptOut: { type: Boolean, default: false },
       voiceOptOut: { type: Boolean, default: false },
     },
+    portalEmail: { type: String, trim: true, lowercase: true, sparse: true },
+    passwordHash: { type: String, select: false },
+    portalActivated: { type: Boolean, default: false },
+    activationToken: { type: String, select: false, sparse: true },
+    activationTokenExpiry: { type: Date, select: false },
     relatedParties: [{
       name: { type: String, required: true, trim: true },
       phone: { type: String, required: true, trim: true },
@@ -47,5 +52,7 @@ patientSchema.index({ tenantId: 1, locationId: 1, createdAt: -1 });
 patientSchema.index({ tenantId: 1, locationId: 1, "contact.phone": 1 });
 patientSchema.index({ tenantId: 1, locationId: 1, name: 1 });
 patientSchema.index({ tenantId: 1, locationId: 1, householdMembers: 1 });
+patientSchema.index({ portalEmail: 1 }, { unique: true, sparse: true });
+patientSchema.index({ activationToken: 1 }, { unique: true, sparse: true });
 
 export const Patient = mongoose.model("Patient", patientSchema);

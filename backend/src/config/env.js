@@ -28,6 +28,11 @@ export const env = {
   awsRegion: process.env.AWS_REGION,
   s3BucketName: process.env.S3_BUCKET_NAME,
   s3AttachmentPrefix: process.env.S3_ATTACHMENT_PREFIX || "meridian-health",
+  emailHost: process.env.EMAIL_HOST,
+  emailPort: Number(process.env.EMAIL_PORT || 587),
+  emailUser: process.env.EMAIL_USER,
+  emailPass: process.env.EMAIL_PASS,
+  emailFrom: process.env.EMAIL_FROM,
 };
 
 export function validateRuntimeEnv() {
@@ -43,6 +48,8 @@ export function validateRuntimeEnv() {
     if (!env.moceanDlrWebhookSecret) missing.push("MOCEAN_DLR_WEBHOOK_SECRET");
     if (!env.moceanDlrPublicUrl.startsWith("https://")) missing.push("valid HTTPS MOCEAN_DLR_PUBLIC_URL");
   }
+  for (const name of ["EMAIL_HOST", "EMAIL_USER", "EMAIL_PASS", "EMAIL_FROM"]) if (!process.env[name]) missing.push(name);
+  if (!Number.isInteger(env.emailPort) || env.emailPort < 1 || env.emailPort > 65535) missing.push("valid EMAIL_PORT");
 
   if (missing.length) {
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);

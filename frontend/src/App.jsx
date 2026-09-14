@@ -22,9 +22,15 @@ import { ResourcesPage } from "@/pages/ResourcesPage";
 import { RecallRequestsPage } from "@/pages/RecallRequestsPage";
 import { OverdueTasksPage } from "@/pages/OverdueTasksPage";
 import { ClinicalTemplatesPage } from "@/pages/ClinicalTemplatesPage";
+import { PortalLoginPage } from "@/pages/PortalLoginPage";
+import { PortalActivationPage } from "@/pages/PortalActivationPage";
+import { PortalDashboardPage } from "@/pages/PortalDashboardPage";
 
 export default function App() {
   return <Routes>
+    <Route path="/portal/login" element={<PortalLoginPage />} />
+    <Route path="/portal/activate/:token" element={<PortalActivationPage />} />
+    <Route path="/portal" element={<PortalDashboardPage />} />
     <Route path="/login" element={<LoginPage />} />
     <Route path="/:tenantSlug/login" element={<Navigate to="/login" replace />} />
     <Route path="/:tenantSlug" element={<RequireTenantSession />}>

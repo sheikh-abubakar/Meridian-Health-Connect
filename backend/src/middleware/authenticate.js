@@ -16,6 +16,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   } catch {
     throw new ApiError(401, "Invalid or expired access token");
   }
+  if (payload.tokenType === "patient_portal") throw new ApiError(403, "Patient portal access cannot be used for staff services");
 
   if (payload.tenantId !== req.tenantId.toString()) {
     throw new ApiError(403, "Access denied for this tenant");
