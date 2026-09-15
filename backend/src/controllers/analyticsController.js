@@ -4,6 +4,7 @@ import { User } from "../models/User.js";
 import { Encounter } from "../models/Encounter.js";
 import { Location } from "../models/Location.js";
 import { Task } from "../models/Task.js";
+import { MessageThread } from "../models/MessageThread.js";
 import { taskEscalation } from "../services/taskEscalationService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -21,7 +22,7 @@ export const getLocationAnalytics = asyncHandler(async (req, res) => {
   const trendStart = new Date(start);
   trendStart.setUTCDate(trendStart.getUTCDate() - 6);
 
-  const [patientTotal, patientToday, portalInvited, portalActivated, appointmentStatuses, appointmentStatusTotals, doctors, completedTotals, completedToday, appointmentTrend, location, overdueTasks] = await Promise.all([
+  const [patientTotal, patientToday, portalInvited, portalActivated, appointmentStatuses, appointmentStatusTotals, doctors, completedTotals, completedToday, appointmentTrend, location, overdueTasks, escalatedMessages] = await Promise.all([
     Patient.countDocuments(scope),
     Patient.countDocuments({ ...scope, createdAt: { $gte: start, $lte: end } }),
     Patient.countDocuments({ ...scope, portalEmail: { $exists: true, $ne: "" } }),
@@ -53,6 +54,7 @@ export const getLocationAnalytics = asyncHandler(async (req, res) => {
     ]),
     Location.findOne({ _id: req.locationId, tenantId: req.tenantId }).select("schedulingSettings").lean(),
     Task.find({ ...scope, status: "open", dueDate: { $lt: new Date() } }).select("dueDate status").lean(),
+    MessageThread.countDocuments({ ...scope, escalationsSent: "admin_flagged" }),
   ]);
 
   const statusCounts = Object.fromEntries(appointmentStatuses.map((entry) => [entry._id, entry.count]));
@@ -90,6 +92,7 @@ export const getLocationAnalytics = asyncHandler(async (req, res) => {
         completedTotal: totalByDoctor.get(doctor._id.toString()) || 0,
       })),
       criticallyOverdueTasks: overdueTasks.filter((task) => taskEscalation(task, location?.schedulingSettings).escalationLevel === 3).length,
+      messagesPastResponseTime: escalatedMessages,
     },
   });
 });

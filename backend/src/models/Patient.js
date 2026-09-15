@@ -19,10 +19,10 @@ const patientSchema = new mongoose.Schema(
       emailOptOut: { type: Boolean, default: false },
       voiceOptOut: { type: Boolean, default: false },
     },
-    portalEmail: { type: String, trim: true, lowercase: true, sparse: true },
+    portalEmail: { type: String, trim: true, lowercase: true },
     passwordHash: { type: String, select: false },
     portalActivated: { type: Boolean, default: false },
-    activationToken: { type: String, select: false, sparse: true },
+    activationToken: { type: String, select: false },
     activationTokenExpiry: { type: Date, select: false },
     relatedParties: [{
       name: { type: String, required: true, trim: true },

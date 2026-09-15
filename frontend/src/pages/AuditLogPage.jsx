@@ -20,11 +20,13 @@ actions.push("task_escalated_tier2", "task_escalated_tier3");
 actions.push("patient_portal_invite_sent");
 actions.push("patient_portal_activated", "patient_portal_logged_in");
 actions.push("patient_portal_appointment_booked", "visit_type_self_scheduling_updated");
+actions.push("patient_message_sent", "staff_message_sent", "patient_message_escalated_staff_due", "patient_message_escalated_admin_flagged");
 Object.assign(actionLabels, { encounter_template_created: "Clinical template created", encounter_template_updated: "Clinical template updated", encounter_template_required_override: "Required template field overridden", encounter_attachment_uploaded: "Clinical attachment uploaded", encounter_attachment_removed: "Clinical attachment removed", encounter_attachment_viewed: "Clinical attachment viewed" });
 Object.assign(actionLabels, { task_escalated_tier2: "Task escalated to creator", task_escalated_tier3: "Task flagged as critically overdue" });
 Object.assign(actionLabels, { patient_portal_invite_sent: "Patient portal invitation sent" });
 Object.assign(actionLabels, { patient_portal_activated: "Patient portal account activated", patient_portal_logged_in: "Patient portal signed in" });
 Object.assign(actionLabels, { patient_portal_appointment_booked: "Patient appointment booked online", visit_type_self_scheduling_updated: "Patient self-scheduling setting updated" });
+Object.assign(actionLabels, { patient_message_sent: "Patient secure message sent", staff_message_sent: "Staff secure message sent", patient_message_escalated_staff_due: "Patient message response due", patient_message_escalated_admin_flagged: "Patient message flagged to Admin" });
 const timestamp = (value) => new Intl.DateTimeFormat("en-PK", { dateStyle: "medium", timeStyle: "short", hour12: true }).format(new Date(value));
 
 export function AuditLogPage() {

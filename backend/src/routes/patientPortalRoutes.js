@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { activatePortal, inspectActivation, patientPortalAppointments, patientPortalBookAppointment, patientPortalBookingOptions, patientPortalLogin, patientPortalSession } from "../controllers/patientPortalController.js";
+import { portalMessages, portalSendMessage } from "../controllers/messageController.js";
 import { authenticatePatientPortal } from "../middleware/authenticatePatientPortal.js";
 
 export const patientPortalRouter = Router();
@@ -10,3 +11,5 @@ patientPortalRouter.get("/session", authenticatePatientPortal, patientPortalSess
 patientPortalRouter.get("/appointments", authenticatePatientPortal, patientPortalAppointments);
 patientPortalRouter.get("/booking-options", authenticatePatientPortal, patientPortalBookingOptions);
 patientPortalRouter.post("/appointments", authenticatePatientPortal, patientPortalBookAppointment);
+patientPortalRouter.get("/messages", authenticatePatientPortal, portalMessages);
+patientPortalRouter.post("/messages", authenticatePatientPortal, portalSendMessage);

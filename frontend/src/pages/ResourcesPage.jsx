@@ -70,6 +70,8 @@ export function ResourcesPage() {
     escalateToCreatorAfterDays: 3,
     flagToAdminAfterDays: 5,
     selfSchedulingBlackouts: [],
+    patientMessageExpectedResponseHours: 24,
+    patientMessageFlagToAdminAfterHours: 48,
   });
   const [blackout, setBlackout] = useState({ startDate: "", endDate: "" }),
     [specialty, setSpecialty] = useState(""),
@@ -99,6 +101,10 @@ export function ResourcesPage() {
           escalateToCreatorAfterDays: p.escalateToCreatorAfterDays ?? 3,
           flagToAdminAfterDays: p.flagToAdminAfterDays ?? 5,
           selfSchedulingBlackouts: p.selfSchedulingBlackouts || [],
+          patientMessageExpectedResponseHours:
+            p.patientMessageExpectedResponseHours ?? 24,
+          patientMessageFlagToAdminAfterHours:
+            p.patientMessageFlagToAdminAfterHours ?? 48,
         });
       })
       .catch((e) => setError(e.message));
@@ -205,6 +211,12 @@ export function ResourcesPage() {
           ),
           flagToAdminAfterDays: Number(settings.flagToAdminAfterDays),
           selfSchedulingBlackouts: settings.selfSchedulingBlackouts,
+          patientMessageExpectedResponseHours: Number(
+            settings.patientMessageExpectedResponseHours,
+          ),
+          patientMessageFlagToAdminAfterHours: Number(
+            settings.patientMessageFlagToAdminAfterHours,
+          ),
         }),
       });
       setNotice(
@@ -435,7 +447,7 @@ export function ResourcesPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex gap-2">
               <Settings2 className="size-5 text-violet-700" />
@@ -507,15 +519,84 @@ export function ResourcesPage() {
                 </div>
               </div>
               <div className="rounded-lg border bg-slate-50 p-4">
+                <Label>Patient Messaging</Label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Set how quickly the clinic should respond before escalations
+                  begin.
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label>Expected response time (hours)</Label>
+                    <Input
+                      className="mt-1"
+                      type="number"
+                      min="1"
+                      value={settings.patientMessageExpectedResponseHours}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          patientMessageExpectedResponseHours: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Flag to Admin after (hours unanswered)</Label>
+                    <Input
+                      className="mt-1"
+                      type="number"
+                      min="1"
+                      value={settings.patientMessageFlagToAdminAfterHours}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          patientMessageFlagToAdminAfterHours: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-lg border bg-slate-50 p-4">
                 <Label>Patient self-scheduling blackout windows</Label>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Add the first and last date to block. Patients cannot book on
-                  any date within that inclusive range; Front-desk scheduling is unaffected.
+                  any date within that inclusive range; Front-desk scheduling is
+                  unaffected.
                 </p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
-                  <div className="space-y-1.5"><Label htmlFor="blackout-start">Start date (first blocked day)</Label><Input id="blackout-start" type="date" value={blackout.startDate} onChange={(e) => setBlackout({ ...blackout, startDate: e.target.value })} /></div>
-                  <div className="space-y-1.5"><Label htmlFor="blackout-end">End date (last blocked day)</Label><Input id="blackout-end" type="date" value={blackout.endDate} onChange={(e) => setBlackout({ ...blackout, endDate: e.target.value })} /></div>
-                  <Button className="w-full lg:w-auto" type="button" variant="outline" onClick={addBlackout}>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="blackout-start">
+                      Start date (first blocked day)
+                    </Label>
+                    <Input
+                      id="blackout-start"
+                      type="date"
+                      value={blackout.startDate}
+                      onChange={(e) =>
+                        setBlackout({ ...blackout, startDate: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="blackout-end">
+                      End date (last blocked day)
+                    </Label>
+                    <Input
+                      id="blackout-end"
+                      type="date"
+                      value={blackout.endDate}
+                      onChange={(e) =>
+                        setBlackout({ ...blackout, endDate: e.target.value })
+                      }
+                    />
+                  </div>
+                  <Button
+                    className="w-full sm:col-span-2"
+                    type="button"
+                    variant="outline"
+                    onClick={addBlackout}
+                  >
                     Add blackout window
                   </Button>
                 </div>

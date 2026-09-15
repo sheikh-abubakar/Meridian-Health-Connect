@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { locationRoom } from "./socketServer.js";
+import { locationRoom, patientRoom } from "./socketServer.js";
 
 const collections = {
   patients: { insert: "patient:created", update: "patient:updated", replace: "patient:updated" },
@@ -17,6 +17,7 @@ const collections = {
   specialties: { insert: "specialty:created", update: "specialty:updated", replace: "specialty:updated" },
   visittypes: { insert: "visittype:created", update: "visittype:updated", replace: "visittype:updated" },
   encountertemplates: { insert: "encountertemplate:created", update: "encountertemplate:updated", replace: "encountertemplate:updated" },
+  messages: { insert: "message:created" },
 };
 
 function encounterEvent(change) {
@@ -37,6 +38,7 @@ export function startRealtimeChangeStream(io) {
     if (collectionName === "encounters" && ["update", "replace"].includes(change.operationType)) event = encounterEvent(change);
     if (!event) return;
     const targets = document.locationId ? [locationRoom(document.tenantId, document.locationId)] : [];
+    if (collectionName === "messages" && document.patientId) targets.push(patientRoom(document.tenantId, document.patientId));
     if (collectionName === "specialties") {
       // Specialties are tenant-wide; notify each connected location only within that tenant.
       for (const [room] of io.sockets.adapter.rooms) if (room.startsWith(`tenant:${document.tenantId}:location:`)) targets.push(room);

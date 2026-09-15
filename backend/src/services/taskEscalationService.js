@@ -1,6 +1,8 @@
 import { AuditLog } from "../models/AuditLog.js";
 import { Location } from "../models/Location.js";
 import { Task } from "../models/Task.js";
+import { MessageThread } from "../models/MessageThread.js";
+import { Message } from "../models/Message.js";
 import { locationRoom, userRoom } from "../realtime/socketServer.js";
 
 const dayMs = 24 * 60 * 60 * 1000;
@@ -32,6 +34,22 @@ export async function processTaskEscalations(io) {
         const payload = { taskId: String(task._id), tier: level, description: task.description, daysOverdue, assigneeId: String(task.assignedToUserId), creatorId: String(task.assignedByUserId), occurredAt: now.toISOString() };
         if (tier === "tier2") io.to(userRoom(location.tenantId, task.assignedByUserId)).emit("task:escalated", payload);
         if (tier === "tier3") io.to(locationRoom(location.tenantId, location._id)).emit("task:escalated", payload);
+      }
+    }
+  }
+  for (const location of locations) {
+    const settings = location.schedulingSettings || {}; const expected = Number(settings.patientMessageExpectedResponseHours ?? 24); const admin = Number(settings.patientMessageFlagToAdminAfterHours ?? 48);
+    const threads = await MessageThread.find({ tenantId: location.tenantId, locationId: location._id }).lean();
+    for (const thread of threads) {
+      const latest = await Message.findOne({ threadId: thread._id, tenantId: location.tenantId, locationId: location._id }).sort({ sentAt: -1 }).lean();
+      if (!latest || latest.senderType !== "patient") continue;
+      const elapsed = Date.now() - new Date(latest.sentAt).getTime();
+      for (const [key, hours] of [["staff_due", expected], ["admin_flagged", admin]]) {
+        if (elapsed < hours * 3600000 || thread.escalationsSent?.includes(key)) continue;
+        const claimed = await MessageThread.findOneAndUpdate({ _id: thread._id, escalationsSent: { $ne: key } }, { $addToSet: { escalationsSent: key } }, { new: true }).lean(); if (!claimed) continue;
+        await AuditLog.create({ tenantId: location.tenantId, locationId: location._id, actorPatientId: thread.patientId, action: `patient_message_escalated_${key}`, targetType: "MessageThread", targetId: thread._id });
+        const payload = { threadId: String(thread._id), patientId: String(thread.patientId), tier: key, occurredAt: now.toISOString() };
+        io.to(locationRoom(location.tenantId, location._id)).emit("message:escalated", payload);
       }
     }
   }
