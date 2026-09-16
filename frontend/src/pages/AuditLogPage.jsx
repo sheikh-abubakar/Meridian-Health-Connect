@@ -1,49 +1,459 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarRange, Filter, ScrollText, ShieldCheck, UserRound } from "lucide-react";
+import {
+  CalendarRange,
+  Filter,
+  ScrollText,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { useParams } from "react-router-dom";
 import { apiRequest } from "@/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useAuth } from "@/context/auth-context";
 import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 
-const actions = ["user_logged_in", "user_created", "user_removed", "password_updated", "availability_updated", "patient_created", "patient_record_viewed", "patient_information_updated", "patient_communication_preferences_updated", "patient_related_party_added", "patient_related_party_removed", "patient_household_linked", "patient_household_unlinked", "appointment_booked", "appointment_checked_in", "appointment_completed", "appointment_cancelled", "appointment_no_show", "appointment_override_recorded", "reminders_scheduled", "reminder_simulated_sent", "resource_created", "scheduling_settings_updated", "waitlist_entry_created", "waitlist_entry_removed", "encounter_started", "encounter_record_viewed", "ai_summary_generated", "ai_summary_accepted", "encounter_finalized", "encounter_amended", "care_plan_created", "care_plan_updated", "task_created", "task_completed", "task_outcome_recorded", "recall_request_created", "recall_request_scheduled", "encounter_exported", "patient_history_exported"];
-const actionLabels = { user_logged_in: "User logged in", user_created: "Staff member created", user_removed: "Staff access removed", password_updated: "Password updated", availability_updated: "Doctor availability updated", patient_created: "Patient created", patient_record_viewed: "Patient record viewed", patient_information_updated: "Patient information corrected", patient_communication_preferences_updated: "Patient communication preferences updated", patient_related_party_added: "Related party added", patient_related_party_removed: "Related party removed", patient_household_linked: "Household member linked", patient_household_unlinked: "Household member unlinked", appointment_booked: "Appointment booked", appointment_checked_in: "Appointment checked in", appointment_completed: "Appointment completed", appointment_cancelled: "Appointment cancelled", appointment_no_show: "Appointment marked no-show", appointment_override_recorded: "Scheduling override recorded", reminders_scheduled: "Simulated reminders scheduled", reminder_simulated_sent: "Simulated reminder sent", resource_created: "Resource created", scheduling_settings_updated: "Scheduling settings updated", waitlist_entry_created: "Waitlist entry created", waitlist_entry_removed: "Waitlist entry removed", encounter_started: "Encounter started", encounter_record_viewed: "Encounter record viewed", ai_summary_generated: "AI summary generated", ai_summary_accepted: "AI summary accepted", encounter_finalized: "Encounter finalized", encounter_amended: "Encounter amended", care_plan_created: "Care plan created", care_plan_updated: "Care plan updated", task_created: "Task created", task_completed: "Task completed", task_outcome_recorded: "Outreach outcome recorded", recall_request_created: "Recall request created", recall_request_scheduled: "Recall request scheduled", encounter_exported: "Clinical visit exported", patient_history_exported: "Visit history exported" };
-const actionTone = (action) => action.includes("completed") || action.includes("finalized") ? "completed" : action.includes("created") || action.includes("booked") || action.includes("started") ? "checked_in" : action.includes("removed") ? "cancelled" : "default";
-actions.push("encounter_template_created", "encounter_template_updated", "encounter_template_required_override", "encounter_attachment_uploaded", "encounter_attachment_removed", "encounter_attachment_viewed");
+const actions = [
+  "user_logged_in",
+  "user_created",
+  "user_removed",
+  "password_updated",
+  "availability_updated",
+  "patient_created",
+  "patient_record_viewed",
+  "patient_information_updated",
+  "patient_communication_preferences_updated",
+  "patient_related_party_added",
+  "patient_related_party_removed",
+  "patient_household_linked",
+  "patient_household_unlinked",
+  "appointment_booked",
+  "appointment_checked_in",
+  "appointment_completed",
+  "appointment_cancelled",
+  "appointment_no_show",
+  "appointment_override_recorded",
+  "reminders_scheduled",
+  "reminder_simulated_sent",
+  "resource_created",
+  "scheduling_settings_updated",
+  "waitlist_entry_created",
+  "waitlist_entry_removed",
+  "encounter_started",
+  "encounter_record_viewed",
+  "ai_summary_generated",
+  "ai_summary_accepted",
+  "encounter_finalized",
+  "encounter_amended",
+  "care_plan_created",
+  "care_plan_updated",
+  "task_created",
+  "task_completed",
+  "task_outcome_recorded",
+  "recall_request_created",
+  "recall_request_scheduled",
+  "encounter_exported",
+  "patient_history_exported",
+];
+const actionLabels = {
+  user_logged_in: "User logged in",
+  user_created: "Staff member created",
+  user_removed: "Staff access removed",
+  password_updated: "Password updated",
+  availability_updated: "Doctor availability updated",
+  patient_created: "Patient created",
+  patient_record_viewed: "Patient record viewed",
+  patient_information_updated: "Patient information corrected",
+  patient_communication_preferences_updated:
+    "Patient communication preferences updated",
+  patient_related_party_added: "Related party added",
+  patient_related_party_removed: "Related party removed",
+  patient_household_linked: "Household member linked",
+  patient_household_unlinked: "Household member unlinked",
+  appointment_booked: "Appointment booked",
+  appointment_checked_in: "Appointment checked in",
+  appointment_completed: "Appointment completed",
+  appointment_cancelled: "Appointment cancelled",
+  appointment_no_show: "Appointment marked no-show",
+  appointment_override_recorded: "Scheduling override recorded",
+  reminders_scheduled: "Simulated reminders scheduled",
+  reminder_simulated_sent: "Simulated reminder sent",
+  resource_created: "Resource created",
+  scheduling_settings_updated: "Scheduling settings updated",
+  waitlist_entry_created: "Waitlist entry created",
+  waitlist_entry_removed: "Waitlist entry removed",
+  encounter_started: "Encounter started",
+  encounter_record_viewed: "Encounter record viewed",
+  ai_summary_generated: "AI summary generated",
+  ai_summary_accepted: "AI summary accepted",
+  encounter_finalized: "Encounter finalized",
+  encounter_amended: "Encounter amended",
+  care_plan_created: "Care plan created",
+  care_plan_updated: "Care plan updated",
+  task_created: "Task created",
+  task_completed: "Task completed",
+  task_outcome_recorded: "Outreach outcome recorded",
+  recall_request_created: "Recall request created",
+  recall_request_scheduled: "Recall request scheduled",
+  encounter_exported: "Clinical visit exported",
+  patient_history_exported: "Visit history exported",
+};
+const actionTone = (action) =>
+  action.includes("completed") || action.includes("finalized")
+    ? "completed"
+    : action.includes("created") ||
+        action.includes("booked") ||
+        action.includes("started")
+      ? "checked_in"
+      : action.includes("removed")
+        ? "cancelled"
+        : "default";
+actions.push(
+  "encounter_template_created",
+  "encounter_template_updated",
+  "encounter_template_required_override",
+  "encounter_attachment_uploaded",
+  "encounter_attachment_removed",
+  "encounter_attachment_viewed",
+);
 actions.push("task_escalated_tier2", "task_escalated_tier3");
 actions.push("patient_portal_invite_sent");
-actions.push("patient_portal_activated", "patient_portal_logged_in");
-actions.push("patient_portal_appointment_booked", "visit_type_self_scheduling_updated");
-actions.push("patient_message_sent", "staff_message_sent", "patient_message_escalated_staff_due", "patient_message_escalated_admin_flagged");
-Object.assign(actionLabels, { encounter_template_created: "Clinical template created", encounter_template_updated: "Clinical template updated", encounter_template_required_override: "Required template field overridden", encounter_attachment_uploaded: "Clinical attachment uploaded", encounter_attachment_removed: "Clinical attachment removed", encounter_attachment_viewed: "Clinical attachment viewed" });
-Object.assign(actionLabels, { task_escalated_tier2: "Task escalated to creator", task_escalated_tier3: "Task flagged as critically overdue" });
-Object.assign(actionLabels, { patient_portal_invite_sent: "Patient portal invitation sent" });
-Object.assign(actionLabels, { patient_portal_activated: "Patient portal account activated", patient_portal_logged_in: "Patient portal signed in" });
-Object.assign(actionLabels, { patient_portal_appointment_booked: "Patient appointment booked online", visit_type_self_scheduling_updated: "Patient self-scheduling setting updated" });
-Object.assign(actionLabels, { patient_message_sent: "Patient secure message sent", staff_message_sent: "Staff secure message sent", patient_message_escalated_staff_due: "Patient message response due", patient_message_escalated_admin_flagged: "Patient message flagged to Admin" });
-const timestamp = (value) => new Intl.DateTimeFormat("en-PK", { dateStyle: "medium", timeStyle: "short", hour12: true }).format(new Date(value));
+actions.push(
+  "patient_portal_activated",
+  "patient_portal_logged_in",
+  "patient_portal_history_exported",
+);
+actions.push(
+  "patient_portal_appointment_booked",
+  "visit_type_self_scheduling_updated",
+);
+actions.push(
+  "patient_message_sent",
+  "staff_message_sent",
+  "patient_message_escalated_staff_due",
+  "patient_message_escalated_admin_flagged",
+);
+Object.assign(actionLabels, {
+  encounter_template_created: "Clinical template created",
+  encounter_template_updated: "Clinical template updated",
+  encounter_template_required_override: "Required template field overridden",
+  encounter_attachment_uploaded: "Clinical attachment uploaded",
+  encounter_attachment_removed: "Clinical attachment removed",
+  encounter_attachment_viewed: "Clinical attachment viewed",
+});
+Object.assign(actionLabels, {
+  task_escalated_tier2: "Task escalated to creator",
+  task_escalated_tier3: "Task flagged as critically overdue",
+});
+Object.assign(actionLabels, {
+  patient_portal_invite_sent: "Patient portal invitation sent",
+});
+Object.assign(actionLabels, {
+  patient_portal_activated: "Patient portal account activated",
+  patient_portal_logged_in: "Patient portal signed in",
+  patient_portal_history_exported: "Patient downloaded visit history",
+});
+Object.assign(actionLabels, {
+  patient_portal_appointment_booked: "Patient appointment booked online",
+  visit_type_self_scheduling_updated: "Patient self-scheduling setting updated",
+});
+Object.assign(actionLabels, {
+  patient_message_sent: "Patient secure message sent",
+  staff_message_sent: "Staff secure message sent",
+  patient_message_escalated_staff_due: "Patient message response due",
+  patient_message_escalated_admin_flagged: "Patient message flagged to Admin",
+});
+const timestamp = (value) =>
+  new Intl.DateTimeFormat("en-PK", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    hour12: true,
+  }).format(new Date(value));
 
 export function AuditLogPage() {
   // Audit inserts are the primary trigger; patient updates are a fallback so
   // corrections, related parties, and household changes refresh immediately
   // even when MongoDB delivers the two change-stream events in different order.
-  const realtimeRevision = useRealtimeRevision(["auditlog:created", "patient:updated", "staff:created"]);
-  const { tenantSlug, locationSlug } = useParams(); const { session } = useAuth(); const root = `/${tenantSlug}/${locationSlug}`;
-  const headers = useMemo(() => ({ Authorization: `Bearer ${session.accessToken}` }), [session.accessToken]);
-  const [logs, setLogs] = useState([]); const [staff, setStaff] = useState([]); const [filters, setFilters] = useState({ actorUserId: "all", action: "all", from: "", to: "" }); const filterRef = useRef(filters); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  const load = useCallback(async (nextFilters = filterRef.current) => { setLoading(true); setError(""); const params = new URLSearchParams(); for (const [key, value] of Object.entries(nextFilters)) if (value && value !== "all") params.set(key, value); try { const data = await apiRequest(`${root}/audit-logs${params.size ? `?${params}` : ""}`, { headers }); setLogs(data.auditLogs); } catch (requestError) { setError(requestError.message); } finally { setLoading(false); } }, [headers, root]);
-  useEffect(() => { const initial = { actorUserId: "all", action: "all", from: "", to: "" }; apiRequest(`${root}/users`, { headers }).then((data) => setStaff([{ id: session.user.id, name: session.user.name, role: session.user.role }, ...data.users.filter((user) => user.id !== session.user.id)])).catch(() => setStaff([{ id: session.user.id, name: session.user.name, role: session.user.role }])); load(initial); }, [headers, load, realtimeRevision, root, session.user.id, session.user.name, session.user.role]);
-  function update(field, value) { setFilters((current) => { const next = { ...current, [field]: value }; filterRef.current = next; return next; }); }
-  function reset() { const empty = { actorUserId: "all", action: "all", from: "", to: "" }; filterRef.current = empty; setFilters(empty); load(empty); }
-  return <><p className="text-sm font-medium text-teal-700">Governance evidence</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">Audit Log</h1><p className="mt-2 text-muted-foreground">Immutable, read-only evidence for actions performed in this branch.</p>
-    <Card className="mt-8 bg-white shadow-none"><CardHeader><div className="flex items-start gap-3"><div className="grid size-10 place-items-center rounded-md bg-violet-50 text-violet-700"><Filter className="size-5" /></div><div><CardTitle className="text-lg">Filter evidence</CardTitle><CardDescription className="mt-1">Narrow by actor, action, or date range.</CardDescription></div></div></CardHeader><CardContent><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><div className="space-y-2"><Label>Staff member</Label><Select value={filters.actorUserId} onValueChange={(value) => update("actorUserId", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All staff</SelectItem>{staff.map((member) => <SelectItem key={member.id} value={member.id}>{member.name} · {member.role.replace("_", " ")}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label>Action type</Label><Select value={filters.action} onValueChange={(value) => update("action", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All actions</SelectItem>{actions.map((action) => <SelectItem key={action} value={action}>{actionLabels[action]}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label htmlFor="audit-from">From</Label><Input id="audit-from" type="date" value={filters.from} onChange={(event) => update("from", event.target.value)} /></div><div className="space-y-2"><Label htmlFor="audit-to">To</Label><Input id="audit-to" type="date" value={filters.to} onChange={(event) => update("to", event.target.value)} /></div></div><div className="mt-4 flex justify-end gap-2"><Button variant="outline" onClick={reset}>Reset</Button><Button className="bg-teal-700 hover:bg-teal-800" onClick={() => load()}><CalendarRange className="mr-2 size-4" /> Apply filters</Button></div></CardContent></Card>
-    {error && <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-    <Card className="mt-6 overflow-hidden bg-white shadow-none"><CardContent className="p-0">{loading ? <div className="space-y-3 p-6"><div className="h-14 animate-pulse rounded bg-slate-100" /><div className="h-14 animate-pulse rounded bg-slate-100" /></div> : logs.length === 0 ? <div className="grid place-items-center px-6 py-16 text-center"><ScrollText className="size-8 text-slate-400" /><p className="mt-3 font-semibold">No audit evidence matches these filters</p><p className="mt-1 text-sm text-muted-foreground">Try a broader actor, action, or date range.</p></div> : <Table><TableHeader><TableRow><TableHead>Timestamp</TableHead><TableHead>Actor</TableHead><TableHead>Action</TableHead><TableHead>Target</TableHead></TableRow></TableHeader><TableBody>{logs.map((log) => <TableRow key={log.id}><TableCell className="whitespace-nowrap"><p className="font-medium">{timestamp(log.timestamp)}</p></TableCell><TableCell><div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-slate-100 text-slate-600"><UserRound className="size-3.5" /></span><div><p className="font-medium">{log.actor?.name || "Unavailable user"}</p><p className="text-xs text-muted-foreground">{log.actor?.role?.replace("_", " ") || "Unknown role"}</p></div></div></TableCell><TableCell><Badge variant={actionTone(log.action)}>{actionLabels[log.action] || log.action.replaceAll("_", " ")}</Badge></TableCell><TableCell><p className="font-medium">{log.target.label}</p><p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-teal-700" />{log.target.type}</p></TableCell></TableRow>)}</TableBody></Table>}</CardContent></Card>
-  </>;
+  const realtimeRevision = useRealtimeRevision([
+    "auditlog:created",
+    "patient:updated",
+    "staff:created",
+  ]);
+  const { tenantSlug, locationSlug } = useParams();
+  const { session } = useAuth();
+  const root = `/${tenantSlug}/${locationSlug}`;
+  const headers = useMemo(
+    () => ({ Authorization: `Bearer ${session.accessToken}` }),
+    [session.accessToken],
+  );
+  const [logs, setLogs] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [filters, setFilters] = useState({
+    actorUserId: "all",
+    action: "all",
+    from: "",
+    to: "",
+  });
+  const filterRef = useRef(filters);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const load = useCallback(
+    async (nextFilters = filterRef.current) => {
+      setLoading(true);
+      setError("");
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(nextFilters))
+        if (value && value !== "all") params.set(key, value);
+      try {
+        const data = await apiRequest(
+          `${root}/audit-logs${params.size ? `?${params}` : ""}`,
+          { headers },
+        );
+        setLogs(data.auditLogs);
+      } catch (requestError) {
+        setError(requestError.message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [headers, root],
+  );
+  useEffect(() => {
+    const initial = { actorUserId: "all", action: "all", from: "", to: "" };
+    apiRequest(`${root}/users`, { headers })
+      .then((data) =>
+        setStaff([
+          {
+            id: session.user.id,
+            name: session.user.name,
+            role: session.user.role,
+          },
+          ...data.users.filter((user) => user.id !== session.user.id),
+        ]),
+      )
+      .catch(() =>
+        setStaff([
+          {
+            id: session.user.id,
+            name: session.user.name,
+            role: session.user.role,
+          },
+        ]),
+      );
+    load(initial);
+  }, [
+    headers,
+    load,
+    realtimeRevision,
+    root,
+    session.user.id,
+    session.user.name,
+    session.user.role,
+  ]);
+  function update(field, value) {
+    setFilters((current) => {
+      const next = { ...current, [field]: value };
+      filterRef.current = next;
+      return next;
+    });
+  }
+  function reset() {
+    const empty = { actorUserId: "all", action: "all", from: "", to: "" };
+    filterRef.current = empty;
+    setFilters(empty);
+    load(empty);
+  }
+  return (
+    <>
+      <p className="text-sm font-medium text-teal-700">Governance evidence</p>
+      <h1 className="mt-1 text-3xl font-semibold tracking-tight">Audit Log</h1>
+      <p className="mt-2 text-muted-foreground">
+        Immutable, read-only evidence for actions performed in this branch.
+      </p>
+      <Card className="mt-8 bg-white shadow-none">
+        <CardHeader>
+          <div className="flex items-start gap-3">
+            <div className="grid size-10 place-items-center rounded-md bg-violet-50 text-violet-700">
+              <Filter className="size-5" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Filter evidence</CardTitle>
+              <CardDescription className="mt-1">
+                Narrow by actor, action, or date range.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="space-y-2">
+              <Label>Staff member</Label>
+              <Select
+                value={filters.actorUserId}
+                onValueChange={(value) => update("actorUserId", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All staff</SelectItem>
+                  {staff.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.name} · {member.role.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Action type</Label>
+              <Select
+                value={filters.action}
+                onValueChange={(value) => update("action", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All actions</SelectItem>
+                  {actions.map((action) => (
+                    <SelectItem key={action} value={action}>
+                      {actionLabels[action]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="audit-from">From</Label>
+              <Input
+                id="audit-from"
+                type="date"
+                value={filters.from}
+                onChange={(event) => update("from", event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="audit-to">To</Label>
+              <Input
+                id="audit-to"
+                type="date"
+                value={filters.to}
+                onChange={(event) => update("to", event.target.value)}
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={reset}>
+              Reset
+            </Button>
+            <Button
+              className="bg-teal-700 hover:bg-teal-800"
+              onClick={() => load()}
+            >
+              <CalendarRange className="mr-2 size-4" /> Apply filters
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      {error && (
+        <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      <Card className="mt-6 overflow-hidden bg-white shadow-none">
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="space-y-3 p-6">
+              <div className="h-14 animate-pulse rounded bg-slate-100" />
+              <div className="h-14 animate-pulse rounded bg-slate-100" />
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="grid place-items-center px-6 py-16 text-center">
+              <ScrollText className="size-8 text-slate-400" />
+              <p className="mt-3 font-semibold">
+                No audit evidence matches these filters
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Try a broader actor, action, or date range.
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Timestamp</TableHead>
+                  <TableHead>Actor</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Target</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="whitespace-nowrap">
+                      <p className="font-medium">{timestamp(log.timestamp)}</p>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="grid size-8 place-items-center rounded-full bg-slate-100 text-slate-600">
+                          <UserRound className="size-3.5" />
+                        </span>
+                        <div>
+                          <p className="font-medium">
+                            {log.actor?.name || "Unavailable user"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {log.actor?.role?.replace("_", " ") ||
+                              "Unknown role"}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={actionTone(log.action)}>
+                        {actionLabels[log.action] ||
+                          log.action.replaceAll("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium">{log.target.label}</p>
+                      <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <ShieldCheck className="size-3.5 text-teal-700" />
+                        {log.target.type}
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
 }

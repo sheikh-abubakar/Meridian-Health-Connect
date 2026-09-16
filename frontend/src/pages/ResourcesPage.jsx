@@ -72,6 +72,7 @@ export function ResourcesPage() {
     selfSchedulingBlackouts: [],
     patientMessageExpectedResponseHours: 24,
     patientMessageFlagToAdminAfterHours: 48,
+    showCarePlansInPatientPortal: false,
   });
   const [blackout, setBlackout] = useState({ startDate: "", endDate: "" }),
     [specialty, setSpecialty] = useState(""),
@@ -105,6 +106,7 @@ export function ResourcesPage() {
             p.patientMessageExpectedResponseHours ?? 24,
           patientMessageFlagToAdminAfterHours:
             p.patientMessageFlagToAdminAfterHours ?? 48,
+          showCarePlansInPatientPortal: Boolean(p.showCarePlansInPatientPortal),
         });
       })
       .catch((e) => setError(e.message));
@@ -217,6 +219,7 @@ export function ResourcesPage() {
           patientMessageFlagToAdminAfterHours: Number(
             settings.patientMessageFlagToAdminAfterHours,
           ),
+          showCarePlansInPatientPortal: settings.showCarePlansInPatientPortal,
         }),
       });
       setNotice(
@@ -326,7 +329,7 @@ export function ResourcesPage() {
         </div>
       </header>
       {notice && (
-        <p className="mt-5 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">
+        <p role="status" className="fixed right-5 top-5 z-[70] max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900 shadow-lg">
           <CheckCircle2 className="mr-2 inline size-4" />
           {notice}
         </p>
@@ -557,6 +560,7 @@ export function ResourcesPage() {
                   </div>
                 </div>
               </div>
+              <div className="flex items-center justify-between gap-4 rounded-lg border bg-teal-50/50 p-4"><div><Label>Patient portal care plans</Label><p className="mt-1 text-sm text-muted-foreground">Show patient-safe care-plan summaries in the portal. Staff-only task notes and history remain private.</p></div><input className="size-5 shrink-0 accent-teal-700" type="checkbox" checked={settings.showCarePlansInPatientPortal} onChange={(e) => setSettings({ ...settings, showCarePlansInPatientPortal: e.target.checked })} aria-label="Show care plans to patients in the portal" /></div>
               <div className="rounded-lg border bg-slate-50 p-4">
                 <Label>Patient self-scheduling blackout windows</Label>
                 <p className="mt-1 text-sm text-muted-foreground">

@@ -28,6 +28,7 @@ const locationSchema = new mongoose.Schema(
       selfSchedulingBlackouts: [{ startDate: { type: String, required: true }, endDate: { type: String, required: true } }],
       patientMessageExpectedResponseHours: { type: Number, default: 24, min: 1, max: 720 },
       patientMessageFlagToAdminAfterHours: { type: Number, default: 48, min: 1, max: 720 },
+      showCarePlansInPatientPortal: { type: Boolean, default: false },
     },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
