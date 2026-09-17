@@ -2,6 +2,7 @@ import {
   Bell,
   CalendarPlus,
   ClipboardList,
+  ClipboardSignature,
   CalendarDays,
   ChevronLeft,
   Download,
@@ -19,6 +20,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { apiRequest, openPdfPreview } from "@/api/client";
 import { clearPortalSession, readPortalSession } from "@/portal/portal-session";
 import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
+import { PatientConsentForms } from "@/components/PatientConsentForms";
 const stamp = (value) =>
   new Intl.DateTimeFormat("en-PK", {
     weekday: "short",
@@ -158,10 +160,13 @@ export function PortalDashboardPage() {
   const revision = useRealtimeRevision([
     "message:created",
     "appointment:created",
+    "assignedform:created",
+    "assignedform:updated",
   ]);
   const [data, setData] = useState(null),
     [appointments, setAppointments] = useState({ upcoming: [], past: [] }),
     [carePlans, setCarePlans] = useState({ enabled: false, carePlans: [] }),
+    [forms, setForms] = useState([]),
     [chat, setChat] = useState({ messages: [], expectedResponseHours: 24 }),
     [view, setView] = useState("home"),
     [options, setOptions] = useState(null),
@@ -185,11 +190,13 @@ export function PortalDashboardPage() {
       apiRequest("/patient-portal/appointments", { headers }),
       apiRequest("/patient-portal/messages", { headers }),
       apiRequest("/patient-portal/care-plans", { headers }),
-    ]).then(([profile, visits, messages, plans]) => {
+      apiRequest("/patient-portal/forms", { headers }),
+    ]).then(([profile, visits, messages, plans, assignedForms]) => {
       setData(profile);
       setAppointments(visits);
       setChat(messages);
       setCarePlans(plans);
+      setForms(assignedForms.forms || []);
     });
   useEffect(() => {
     if (session?.accessToken)
@@ -305,6 +312,7 @@ export function PortalDashboardPage() {
             ["home", Home, "Home"],
             ["book", CalendarPlus, "Book appointment"],
             ["chat", MessageCircle, "Messages"],
+            ["forms", ClipboardSignature, "Forms"],
             ["past", History, "Past visits"],
             ...(carePlans.enabled
               ? [["plans", ClipboardList, "Care plans"]]
@@ -323,6 +331,7 @@ export function PortalDashboardPage() {
                 <Icon className="size-4" />
               </span>
               {label}
+              {key === "forms" && forms.filter((form) => form.status === "pending").length > 0 && <span className="ml-auto rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-slate-950">{forms.filter((form) => form.status === "pending").length}</span>}
             </button>
           ))}
         </nav>
@@ -417,7 +426,14 @@ export function PortalDashboardPage() {
           </div>
         </header>
         <div className="mx-auto max-w-3xl px-5 py-9">
-          {view === "plans" ? (
+          {view === "forms" ? (
+            <PatientConsentForms
+              forms={forms}
+              headers={headers}
+              onBack={() => setView("home")}
+              onSubmitted={(submitted) => setForms((current) => current.map((form) => form.id === submitted.id ? submitted : form))}
+            />
+          ) : view === "plans" ? (
             <>
               <h1 className="text-3xl font-bold">Your care plans</h1>
               <p className="mt-2 text-slate-600">
@@ -703,6 +719,22 @@ export function PortalDashboardPage() {
                     </div>
                   </button>
                 )}
+                <button
+                  onClick={() => setView("forms")}
+                  className="rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:border-teal-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-600"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="grid size-10 place-items-center rounded-xl bg-amber-50 text-amber-700">
+                      <ClipboardSignature className="size-5" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">Your forms</p>
+                      <p className="text-sm text-slate-500">Consent and intake forms from your clinic</p>
+                    </div>
+                  </div>
+                  <p className="mt-5 text-lg font-bold">{forms.filter((form) => form.status === "pending").length ? `${forms.filter((form) => form.status === "pending").length} form${forms.filter((form) => form.status === "pending").length === 1 ? "" : "s"} to complete` : "No forms waiting"}</p>
+                  <p className="mt-2 text-sm text-slate-600">{forms.filter((form) => form.status === "pending").length ? "Complete your form securely when you are ready." : "View your submitted forms at any time."}</p>
+                </button>
               </section>
               <section className="mt-9">
                 <div className="flex items-center justify-between">

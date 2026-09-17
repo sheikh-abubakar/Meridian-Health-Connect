@@ -10,6 +10,7 @@ import {
   patientPortalLogin,
   patientPortalSession,
 } from "../controllers/patientPortalController.js";
+import { patientPortalForms, submitPatientPortalForm } from "../controllers/formTemplateController.js";
 import {
   portalMessages,
   portalSendMessage,
@@ -56,3 +57,5 @@ patientPortalRouter.get(
   authenticatePatientPortal,
   patientPortalExport,
 );
+patientPortalRouter.get("/forms", authenticatePatientPortal, patientPortalForms);
+patientPortalRouter.post("/forms/:assignedFormId/submit", authenticatePatientPortal, submitPatientPortalForm);

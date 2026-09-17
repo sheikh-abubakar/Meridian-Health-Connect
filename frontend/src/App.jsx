@@ -26,6 +26,7 @@ import { PortalLoginPage } from "@/pages/PortalLoginPage";
 import { PortalActivationPage } from "@/pages/PortalActivationPage";
 import { PortalDashboardPage } from "@/pages/PortalDashboardPage";
 import { LandingPage } from "@/pages/LandingPage";
+import { ConsentFormsPage } from "@/pages/ConsentFormsPage";
 
 export default function App() {
   return <Routes>
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="staff" element={<RequireRole roles={["admin"]}><StaffPage /></RequireRole>} />
         <Route path="resources" element={<RequireRole roles={["admin"]}><ResourcesPage /></RequireRole>} />
         <Route path="clinical-templates" element={<RequireRole roles={["admin"]}><ClinicalTemplatesPage /></RequireRole>} />
+        <Route path="consent-forms" element={<RequireRole roles={["admin"]}><ConsentFormsPage /></RequireRole>} />
         <Route path="audit-log" element={<RequireRole roles={["admin"]}><AuditLogPage /></RequireRole>} />
         <Route path="overdue-tasks" element={<RequireRole roles={["admin"]}><OverdueTasksPage /></RequireRole>} />
         <Route path="patients" element={<RequireRole roles={["frontdesk", "admin"]}><PatientsPage /></RequireRole>} />

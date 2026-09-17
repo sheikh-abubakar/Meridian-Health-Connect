@@ -6,6 +6,7 @@ import { authenticate } from "../middleware/authenticate.js";
 import { authorizeLocationAccess } from "../middleware/authorizeLocationAccess.js";
 import { authorizeRoles } from "../middleware/authorizeRoles.js";
 import { exportPatientVisitHistory } from "../controllers/recordExportController.js";
+import { assignForm, listAssignedForms } from "../controllers/formTemplateController.js";
 
 export const patientRouter = Router({ mergeParams: true });
 patientRouter.use(authenticate, authorizeLocationAccess);
@@ -19,6 +20,8 @@ patientRouter.patch("/:id", authorizeRoles("frontdesk", "admin"), updatePatient)
 patientRouter.patch("/:id/communication-preferences", authorizeRoles("frontdesk", "admin"), updateCommunicationPreferences);
 patientRouter.post("/:id/related-parties", authorizeRoles("frontdesk", "admin"), addRelatedParty);
 patientRouter.post("/:id/portal-invite", authorizeRoles("frontdesk", "admin"), invitePatientToPortal);
+patientRouter.post("/:id/assign-form", authorizeRoles("frontdesk", "admin"), assignForm);
+patientRouter.get("/:id/forms", authorizeRoles("frontdesk", "admin"), listAssignedForms);
 patientRouter.post("/:id/messages", authorizeRoles("frontdesk", "admin", "doctor", "care_coordinator"), staffSendMessage);
 patientRouter.delete("/:id/related-parties/:entryId", authorizeRoles("frontdesk", "admin"), removeRelatedParty);
 patientRouter.post("/:id/household", authorizeRoles("frontdesk", "admin"), linkHouseholdMember);

@@ -5,6 +5,7 @@ import {
   Boxes,
   CalendarDays,
   ClipboardCheck,
+  ClipboardSignature,
   ClipboardClock,
   HeartHandshake,
   LayoutDashboard,
@@ -173,6 +174,13 @@ export function AppLayout() {
       "Management",
       `${root}/clinical-templates`,
       ClipboardCheck,
+      session.user.role === "admin",
+    ],
+    [
+      "Consent Forms",
+      "Management",
+      `${root}/consent-forms`,
+      ClipboardSignature,
       session.user.role === "admin",
     ],
     [

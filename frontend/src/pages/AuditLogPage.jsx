@@ -157,6 +157,8 @@ actions.push(
   "patient_message_escalated_staff_due",
   "patient_message_escalated_admin_flagged",
 );
+actions.push("consent_form_template_created", "consent_form_template_updated", "consent_form_assigned");
+actions.push("consent_form_signed");
 Object.assign(actionLabels, {
   encounter_template_created: "Clinical template created",
   encounter_template_updated: "Clinical template updated",
@@ -186,6 +188,12 @@ Object.assign(actionLabels, {
   staff_message_sent: "Staff secure message sent",
   patient_message_escalated_staff_due: "Patient message response due",
   patient_message_escalated_admin_flagged: "Patient message flagged to Admin",
+});
+Object.assign(actionLabels, {
+  consent_form_template_created: "Consent form template created",
+  consent_form_template_updated: "Consent form template updated",
+  consent_form_assigned: "Consent form assigned to patient",
+  consent_form_signed: "Consent form signed by patient",
 });
 const timestamp = (value) =>
   new Intl.DateTimeFormat("en-PK", {

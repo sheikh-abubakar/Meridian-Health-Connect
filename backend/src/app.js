@@ -26,6 +26,7 @@ import { waitlistRouter } from "./routes/waitlistRoutes.js";
 import { reminderRouter } from "./routes/reminderRoutes.js";
 import { receiveMoceanDeliveryReceipt } from "./controllers/moceanWebhookController.js";
 import { patientPortalRouter } from "./routes/patientPortalRoutes.js";
+import { formTemplateRouter } from "./routes/formTemplateRoutes.js";
 
 export const app = express();
 
@@ -67,6 +68,7 @@ app.use("/api/:tenantSlug/:locationSlug/context", resolveTenant, resolveLocation
 app.use("/api/:tenantSlug/:locationSlug/analytics", resolveTenant, resolveLocation, analyticsRouter);
 app.use("/api/:tenantSlug/:locationSlug/users", resolveTenant, resolveLocation, userRouter);
 app.use("/api/:tenantSlug/:locationSlug/patients", resolveTenant, resolveLocation, patientRouter);
+app.use("/api/:tenantSlug/:locationSlug/form-templates", resolveTenant, resolveLocation, formTemplateRouter);
 app.use("/api/:tenantSlug/:locationSlug/availability", resolveTenant, resolveLocation, availabilityRouter);
 app.use("/api/:tenantSlug/:locationSlug/appointments", resolveTenant, resolveLocation, appointmentRouter);
 app.use("/api/:tenantSlug/:locationSlug/encounters", resolveTenant, resolveLocation, encounterRouter);

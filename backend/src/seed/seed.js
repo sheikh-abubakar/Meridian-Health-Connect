@@ -3,6 +3,7 @@ import { env, validateRuntimeEnv } from "../config/env.js";
 import { Location } from "../models/Location.js";
 import { Tenant } from "../models/Tenant.js";
 import { User } from "../models/User.js";
+import { FormTemplate } from "../models/FormTemplate.js";
 import { hashPassword } from "../services/passwordService.js";
 
 const tenants = [
@@ -88,6 +89,38 @@ async function seed() {
       },
       { $set: { locationId: seededLocations[0]._id } },
     );
+
+    if (item.slug === "city-care") {
+      const gulberg = seededLocations.find((location) => location.slug === "gulberg");
+      const admin = await User.findOne({ tenantId: tenant._id, email: item.admin.email }).select("_id").lean();
+      const templates = [
+        { name: "General Treatment Consent", fields: [
+          { id: "treatment-statement", type: "static_text", label: "I understand that City Care Clinic staff will examine, diagnose, and provide necessary treatment based on my symptoms.", required: false },
+          { id: "treatment-agreement", type: "checkbox", label: "I have read and understood the above statement, and consent to treatment.", required: true },
+          { id: "drug-allergies", type: "short_text", label: "Do you have any known drug allergies?", required: false },
+          { id: "emergency-contact-sharing", type: "yes_no", label: "Do you consent to sharing treatment information with your emergency contact?", required: false },
+          { id: "patient-signature", type: "signature", label: "Patient signature", required: true },
+        ] },
+        { name: "Telehealth Consent", fields: [
+          { id: "telehealth-statement", type: "static_text", label: "I understand this visit will be conducted via video/audio call rather than in person, and that some limitations apply to remote examination.", required: false },
+          { id: "telehealth-agreement", type: "checkbox", label: "I consent to a telehealth visit under these conditions.", required: true },
+          { id: "patient-signature", type: "signature", label: "Patient signature", required: true },
+        ] },
+        { name: "Photography/Media Consent", fields: [
+          { id: "photography-statement", type: "static_text", label: "City Care Clinic may take photographs for clinical documentation purposes (e.g. wound progress tracking).", required: false },
+          { id: "photography-agreement", type: "checkbox", label: "I consent to clinical photography being taken and stored as part of my medical record.", required: true },
+          { id: "training-use", type: "yes_no", label: "May this be used for staff training purposes (fully anonymized)?", required: false },
+          { id: "patient-signature", type: "signature", label: "Patient signature", required: true },
+        ] },
+      ];
+      for (const template of templates) {
+        await FormTemplate.findOneAndUpdate(
+          { tenantId: tenant._id, locationId: gulberg._id, name: template.name },
+          { $set: { fields: template.fields }, $setOnInsert: { createdBy: admin._id } },
+          { upsert: true, new: true, runValidators: true },
+        );
+      }
+    }
   }
 
   console.log("Seed complete");

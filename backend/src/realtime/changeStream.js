@@ -18,6 +18,8 @@ const collections = {
   visittypes: { insert: "visittype:created", update: "visittype:updated", replace: "visittype:updated" },
   encountertemplates: { insert: "encountertemplate:created", update: "encountertemplate:updated", replace: "encountertemplate:updated" },
   messages: { insert: "message:created" },
+  formtemplates: { insert: "formtemplate:created", update: "formtemplate:updated", replace: "formtemplate:updated" },
+  assignedforms: { insert: "assignedform:created", update: "assignedform:updated", replace: "assignedform:updated" },
 };
 
 function encounterEvent(change) {
@@ -38,7 +40,7 @@ export function startRealtimeChangeStream(io) {
     if (collectionName === "encounters" && ["update", "replace"].includes(change.operationType)) event = encounterEvent(change);
     if (!event) return;
     const targets = document.locationId ? [locationRoom(document.tenantId, document.locationId)] : [];
-    if (collectionName === "messages" && document.patientId) targets.push(patientRoom(document.tenantId, document.patientId));
+    if (["messages", "assignedforms"].includes(collectionName) && document.patientId) targets.push(patientRoom(document.tenantId, document.patientId));
     if (collectionName === "specialties") {
       // Specialties are tenant-wide; notify each connected location only within that tenant.
       for (const [room] of io.sockets.adapter.rooms) if (room.startsWith(`tenant:${document.tenantId}:location:`)) targets.push(room);
