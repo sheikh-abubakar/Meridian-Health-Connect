@@ -1,4 +1,4 @@
-import { createElement, useEffect, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -8,6 +8,7 @@ import {
   ClipboardSignature,
   ClipboardClock,
   HeartHandshake,
+  GitBranchPlus,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -42,6 +43,20 @@ const roleLabels = {
   care_coordinator: "Care Coordinator",
 };
 
+function StaffNotificationBell({ root, accessToken, notifications, setNotifications, open, setOpen, panelRef, navigate }) {
+  async function clearAll() {
+    const persistent = notifications.some((item) => item.type !== "patient_message");
+    if (persistent) await apiRequest(`${root}/notifications/read-all`, { method: "PATCH", headers: { Authorization: `Bearer ${accessToken}` } }).catch(() => {});
+    setNotifications([]); setOpen(false);
+  }
+  async function openNotification(item) {
+    if (item.type !== "patient_message") await apiRequest(`${root}/notifications/${item.id}/read`, { method: "PATCH", headers: { Authorization: `Bearer ${accessToken}` } }).catch(() => {});
+    setNotifications((current) => current.filter((entry) => String(entry.id) !== String(item.id))); setOpen(false);
+    navigate(item.type === "patient_message" ? `${root}/patients/${item.patientId}#messages` : `${root}${item.targetPath || "/dashboard"}`);
+  }
+  return <div className="relative" ref={panelRef}><Button variant="outline" size="sm" className="relative size-9 px-0" aria-label="Notifications" onClick={() => setOpen((value) => !value)}><Bell className="size-4" />{notifications.length > 0 && <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{notifications.length}</span>}</Button>{open && <div className="absolute right-0 top-11 z-50 w-80 overflow-hidden rounded-xl border bg-white shadow-xl"><div className="flex items-center justify-between border-b p-3"><b className="text-sm">Notifications</b><button className="text-xs font-medium text-teal-700" onClick={clearAll}>Clear all</button></div>{notifications.length ? notifications.map((item) => <button key={item.id} onClick={() => openNotification(item)} className="block w-full border-b p-3 text-left transition hover:bg-teal-50"><p className="text-sm font-semibold">{item.title || "New patient message"}</p><p className="mt-1 line-clamp-2 text-xs text-slate-600">{item.body}</p></button>) : <p className="p-5 text-center text-sm text-slate-500">No new notifications.</p>}</div>}</div>;
+}
+
 export function AppLayout() {
   const { tenantSlug, locationSlug } = useParams();
   const navigate = useNavigate();
@@ -53,6 +68,7 @@ export function AppLayout() {
   const [escalationNotice, setEscalationNotice] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationPanelRef = useRef(null);
   const { status: realtimeStatus } = useRealtimeStatus();
 
   useEffect(() => {
@@ -107,12 +123,49 @@ export function AppLayout() {
     setMobileOpen(false);
   }, [route.pathname]);
   useEffect(() => {
+    let active = true;
+    const root = `/${tenantSlug}/${locationSlug}`;
+    apiRequest(`${root}/notifications`, { headers: { Authorization: `Bearer ${session.accessToken}` } })
+      .then((data) => active && setNotifications(data.notifications || []))
+      .catch(() => active && setNotifications([]));
+    return () => { active = false; };
+  }, [locationSlug, session.accessToken, tenantSlug]);
+  useEffect(() => {
     const receive = ({ detail }) => {
       if (detail.event !== "task:escalated" || detail.payload?.tier !== 2)
         return;
       setEscalationNotice(
         `Task “${detail.payload.description}” is now ${detail.payload.daysOverdue} days overdue.`,
       );
+    };
+    window.addEventListener("meridian:realtime", receive);
+    return () => window.removeEventListener("meridian:realtime", receive);
+  }, []);
+  useEffect(() => {
+    const receive = ({ detail }) => {
+      const referral = detail.payload?.document;
+      // Referral events are persisted into the bell inbox by the backend. Do not
+      // duplicate them as transient escalation toasts.
+      if (!referral || detail.event.startsWith("referral:")) return;
+      if (detail.event === "referral:created" && String(referral.targetDoctorId) === String(session.user.id)) {
+        setEscalationNotice(`New ${referral.urgency || "routine"} referral received. Open My Referrals to review it.`);
+      } else if (detail.event === "referral:created" && session.user.role === "frontdesk") {
+        setEscalationNotice("New referral needs a Front-desk booking. Open Scheduling → Referrals.");
+      } else if (detail.event === "referral:updated" && referral.status === "scheduled" && String(referral.targetDoctorId) === String(session.user.id)) {
+        setEscalationNotice("A referral visit has been scheduled for you. It will appear in My Queue when the patient checks in.");
+      } else if (detail.event === "referral:updated" && referral.status === "completed" && String(referral.referringDoctorId) === String(session.user.id)) {
+        setEscalationNotice("Closed-loop referral response received. Open My Referrals to review the specialist note.");
+      }
+    };
+    window.addEventListener("meridian:realtime", receive);
+    return () => window.removeEventListener("meridian:realtime", receive);
+  }, [session.user.id, session.user.role]);
+  useEffect(() => {
+    const receive = ({ detail }) => {
+      const notification = detail.payload?.document;
+      if (detail.event !== "notification:created" || !notification) return;
+      const item = { id: String(notification._id), type: notification.type, title: notification.title, body: notification.body, targetPath: notification.targetPath, targetId: notification.targetId, createdAt: notification.createdAt };
+      setNotifications((current) => current.some((entry) => String(entry.id) === item.id) ? current : [item, ...current].slice(0, 30));
     };
     window.addEventListener("meridian:realtime", receive);
     return () => window.removeEventListener("meridian:realtime", receive);
@@ -128,6 +181,8 @@ export function AppLayout() {
           [
             {
               id: String(message._id),
+              type: "patient_message",
+              title: "New patient message",
               patientId: String(message.patientId),
               body: message.body,
             },
@@ -151,6 +206,16 @@ export function AppLayout() {
       window.removeEventListener("keydown", close);
     };
   }, [mobileOpen]);
+  useEffect(() => {
+    if (!notificationsOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!notificationPanelRef.current?.contains(event.target)) setNotificationsOpen(false);
+    };
+    const closeOnEscape = (event) => { if (event.key === "Escape") setNotificationsOpen(false); };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => { document.removeEventListener("pointerdown", closeOnOutsideClick); window.removeEventListener("keydown", closeOnEscape); };
+  }, [notificationsOpen]);
 
   const root = `/${tenantSlug}/${locationSlug}`;
   const navigation = [
@@ -230,6 +295,13 @@ export function AppLayout() {
       "Clinical",
       `${root}/my-patients`,
       UserRound,
+      session.user.role === "doctor",
+    ],
+    [
+      "My Referrals",
+      "Clinical",
+      `${root}/my-referrals`,
+      GitBranchPlus,
       session.user.role === "doctor",
     ],
     [
@@ -404,10 +476,7 @@ export function AppLayout() {
             </div>
           </div>
           <div className="flex shrink-0 gap-1.5">
-            <div className="relative">
-              <Button variant="outline" size="sm" className="relative size-9 px-0" aria-label="Patient message notifications" onClick={() => setNotificationsOpen((value) => !value)}><Bell className="size-4" />{notifications.length > 0 && <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{notifications.length}</span>}</Button>
-              {notificationsOpen && <div className="absolute right-0 top-11 z-50 w-80 overflow-hidden rounded-xl border bg-white shadow-xl"><div className="flex items-center justify-between border-b p-3"><b className="text-sm">Patient messages</b><button className="text-xs font-medium text-teal-700" onClick={() => setNotifications([])}>Clear all</button></div>{notifications.length ? notifications.map((item) => <button key={item.id} onClick={() => { setNotifications((current) => current.filter((entry) => entry.id !== item.id)); setNotificationsOpen(false); navigate(`${root}/patients/${item.patientId}#messages`); }} className="block w-full border-b p-3 text-left transition hover:bg-teal-50"><p className="text-sm font-semibold">New patient message</p><p className="mt-1 line-clamp-2 text-xs text-slate-600">{item.body}</p></button>) : <p className="p-5 text-center text-sm text-slate-500">No new messages.</p>}</div>}
-            </div>
+            <StaffNotificationBell root={root} accessToken={session.accessToken} notifications={notifications} setNotifications={setNotifications} open={notificationsOpen} setOpen={setNotificationsOpen} panelRef={notificationPanelRef} navigate={navigate} />
             <Button
               variant="outline"
               size="sm"

@@ -11,9 +11,12 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 function scopedPopulate(query, req) {
   const match = { tenantId: req.tenantId, locationId: req.locationId };
   return query
-    .populate({ path: "patientId", select: "name contact", match })
+    // A linked cross-branch referral may legitimately reference the origin branch's
+    // patient record; the appointment itself remains scoped to this location.
+    .populate({ path: "patientId", select: "name contact", match: { tenantId: req.tenantId } })
     .populate({ path: "doctorId", select: "name email", match: { ...match, role: "doctor" } })
-    .populate({ path: "resourceId", select: "name type", match });
+    .populate({ path: "resourceId", select: "name type", match })
+    .populate({ path: "referralId", select: "reason urgency status referringDoctorId originLocationId", match: { tenantId: req.tenantId, targetLocationId: req.locationId } });
 }
 
 export const listAppointments = asyncHandler(async (req, res) => {

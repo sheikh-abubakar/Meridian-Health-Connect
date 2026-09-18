@@ -159,6 +159,7 @@ actions.push(
 );
 actions.push("consent_form_template_created", "consent_form_template_updated", "consent_form_assigned");
 actions.push("consent_form_signed");
+actions.push("referral_created", "referral_status_updated", "referral_closed_loop");
 Object.assign(actionLabels, {
   encounter_template_created: "Clinical template created",
   encounter_template_updated: "Clinical template updated",
@@ -194,6 +195,9 @@ Object.assign(actionLabels, {
   consent_form_template_updated: "Consent form template updated",
   consent_form_assigned: "Consent form assigned to patient",
   consent_form_signed: "Consent form signed by patient",
+  referral_created: "Referral created",
+  referral_status_updated: "Referral status updated",
+  referral_closed_loop: "Referral closed-loop response recorded",
 });
 const timestamp = (value) =>
   new Intl.DateTimeFormat("en-PK", {

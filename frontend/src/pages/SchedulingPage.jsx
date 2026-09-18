@@ -33,7 +33,7 @@ import { useAuth } from "@/context/auth-context";
 import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 import { dateKey, dayNames, formatClinicDateTime, formatTime12, isAvailableDateTime } from "@/lib/schedule";
 
-const blank = { patientId: "", visitTypeId: "", doctorId: "", resourceId: "none", scheduledAt: "", overrideReason: "" };
+const blank = { patientId: "", visitTypeId: "", doctorId: "", resourceId: "none", scheduledAt: "", overrideReason: "", referralId: "" };
 const stale = (value) => !value || Date.now() - new Date(value).getTime() > 72 * 60 * 60 * 1000;
 
 const statusTabs = [
@@ -53,7 +53,7 @@ export function SchedulingPage() {
   const revision = useRealtimeRevision([
     "appointment:created", "appointment:updated", "staff:created", "staff:updated",
     "availability:updated", "resource:created", "visittype:created", "waitlist:created",
-    "waitlist:removed", "reminder:created", "reminder:updated"
+    "waitlist:removed", "reminder:created", "reminder:updated", "referral:created", "referral:updated"
   ]);
 
   const [appointments, setAppointments] = useState([]);
@@ -63,11 +63,13 @@ export function SchedulingPage() {
   const [waitlist, setWaitlist] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [availability, setAvailability] = useState([]);
+  const [referrals, setReferrals] = useState([]);
 
   // UI Filter states
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showWaitlist, setShowWaitlist] = useState(false);
+  const [showReferrals, setShowReferrals] = useState(false);
 
   // Dialog & Booking state
   const [bookingOpen, setBookingOpen] = useState(false);
@@ -95,8 +97,9 @@ export function SchedulingPage() {
       apiRequest(`${root}/resources/visit-types`, { headers }),
       apiRequest(`${root}/waitlist`, { headers }),
       apiRequest(`${root}/reminders`, { headers }),
+      apiRequest(`${root}/referrals/incoming`, { headers }),
     ])
-      .then(([a, d, r, v, w, m]) => {
+      .then(([a, d, r, v, w, m, incoming]) => {
         if (!live) return;
         setAppointments(a.appointments);
         setDoctors(d.doctors);
@@ -104,6 +107,7 @@ export function SchedulingPage() {
         setVisitTypes(v.visitTypes);
         setWaitlist(w.waitlist);
         setReminders(m.reminders);
+        setReferrals(incoming.referrals || []);
       })
       .catch((requestError) => live && setError(requestError.message))
       .finally(() => live && setLoading(false));
@@ -207,11 +211,12 @@ export function SchedulingPage() {
         body: JSON.stringify({ ...booking, doctorId: selectedDoctorId, resourceId: booking.resourceId === "none" ? undefined : booking.resourceId }),
       });
       setAppointments((current) => [...current, data.appointment].sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt)));
+      if (booking.referralId) setReferrals((current) => current.filter((item) => item.id !== booking.referralId));
       if (scheduledWaitId) {
         await apiRequest(`${root}/waitlist/${scheduledWaitId}`, { method: "DELETE", headers });
         setWaitlist((current) => current.filter((item) => item._id !== scheduledWaitId));
       }
-      setNotice(scheduledWaitId ? "Appointment booked and patient removed from waitlist." : "Appointment booked with configured provider, duration and resource rules.");
+      setNotice(scheduledWaitId ? "Appointment booked and patient removed from waitlist." : booking.referralId ? "Referral-linked appointment booked. The referral is now scheduled." : "Appointment booked with configured provider, duration and resource rules.");
       closeBooking(false);
     } catch (requestError) {
       setError(requestError.message);
@@ -283,6 +288,15 @@ export function SchedulingPage() {
     }
   }
 
+  async function scheduleReferral(referral) {
+    if (!referral.patient?.id || !referral.targetDoctor?.id) return setError("This referral is missing its patient or receiving Doctor.");
+    setPatient(referral.patient);
+    setBooking({ ...blank, patientId: referral.patient.id, doctorId: referral.targetDoctor.id, referralId: referral.id });
+    setSelectedDoctorId(referral.targetDoctor.id);
+    setStep("details"); setBookingOpen(true); setShowReferrals(false);
+    try { await loadAvailability(referral.targetDoctor.id); } catch (requestError) { setError(requestError.message); }
+  }
+
   async function removeWaiting(entry) {
     if (!window.confirm(`Remove ${entry.patientId?.name} from waitlist?`)) return;
     await apiRequest(`${root}/waitlist/${entry._id}`, { method: "DELETE", headers });
@@ -291,6 +305,7 @@ export function SchedulingPage() {
   }
 
   const reminderText = (id) => reminders.filter((item) => String(item.appointmentId) === String(id)).map((item) => `${item.channel}: ${item.status.replaceAll("_", " ")}`).join(" | ");
+  const referralChoices = referrals.filter((item) => String(item.patient?.id) === String(patient?.id) && String(item.targetDoctor?.id) === String(selectedDoctorId));
 
   // Status Counts
   const counts = useMemo(() => {
@@ -343,6 +358,11 @@ export function SchedulingPage() {
                 {waitlist.length}
               </span>
             )}
+          </Button>
+
+          <Button variant="outline" onClick={() => setShowReferrals((prev) => !prev)} className="relative border-violet-200 text-violet-800 hover:bg-violet-50">
+            <Stethoscope className="mr-2 size-4" /> Referrals
+            {referrals.length > 0 && <span className="ml-2 inline-flex items-center justify-center rounded-full bg-violet-700 px-2 py-0.5 text-xs font-semibold text-white">{referrals.length}</span>}
           </Button>
 
           {/* Waitlist Modal */}
@@ -435,6 +455,8 @@ export function SchedulingPage() {
                     </Select>
                   </div>
 
+                  {patient && selectedDoctorId && <div className="space-y-1.5"><Label>Link to Referral <span className="font-normal text-muted-foreground">(optional)</span></Label><Select value={booking.referralId || "none"} onValueChange={(value) => update("referralId", value === "none" ? "" : value)}><SelectTrigger><SelectValue placeholder="No referral linked" /></SelectTrigger><SelectContent><SelectItem value="none">No referral linked</SelectItem>{referralChoices.map((referral) => <SelectItem key={referral.id} value={referral.id}>{referral.urgency} · {referral.reason.slice(0, 70)}</SelectItem>)}</SelectContent></Select>{booking.referralId && <p className="text-xs font-medium text-violet-800">This booking will automatically mark the selected referral as scheduled.</p>}</div>}
+
                   <div className="space-y-1.5">
                     <Label>{selectedVisit?.requiredResourceType ? `Required ${selectedVisit.requiredResourceType.replaceAll("_", " ")}` : "Resource (optional)"}</Label>
                     <Select value={booking.resourceId} onValueChange={(value) => update("resourceId", value)} disabled={!selectedVisit}>
@@ -490,6 +512,8 @@ export function SchedulingPage() {
           <button onClick={() => setError("")} className="text-red-600 hover:text-red-900 text-xs font-bold uppercase">Dismiss</button>
         </div>
       )}
+
+      {showReferrals && <Card className="border-violet-200 bg-violet-50/40 shadow-xs"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base font-semibold text-violet-950"><Stethoscope className="size-5" /> Incoming referrals needing a booking</CardTitle><CardDescription>Sent and acknowledged referrals to Doctors at this branch. Booking the visit automatically marks the referral as scheduled.</CardDescription></CardHeader><CardContent>{referrals.length ? <div className="space-y-3">{referrals.map((referral) => <div className="flex flex-col justify-between gap-4 rounded-xl border border-violet-100 bg-white p-4 lg:flex-row lg:items-center" key={referral.id}><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{referral.patient?.name}</p><Badge variant={referral.status === "received" ? "checked_in" : "scheduled"}>{referral.status}</Badge><span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">{referral.urgency}</span></div><p className="mt-1 text-sm text-slate-600">From {referral.referringDoctor?.name} · {referral.originLocation} → {referral.targetLocation}</p><p className="mt-2 text-sm text-slate-800"><b>Reason:</b> {referral.reason}</p><p className="mt-2 text-xs text-slate-500">Receiving Doctor: {referral.targetDoctor?.name}</p></div><Button className="w-full bg-violet-700 hover:bg-violet-800 lg:w-auto" onClick={() => scheduleReferral(referral)}><CalendarDays className="mr-2 size-4" />Book linked visit</Button></div>)}</div> : <div className="rounded-lg border border-dashed bg-white p-8 text-center text-sm text-muted-foreground">No referrals currently need a booking at this branch.</div>}</CardContent></Card>}
 
       {/* Waitlist Drawer / Section */}
       {showWaitlist && (

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Appointment } from "../models/Appointment.js";
 import { AuditLog } from "../models/AuditLog.js";
 import { Availability } from "../models/Availability.js";
@@ -8,9 +9,11 @@ import { Location } from "../models/Location.js";
 import { Reminder } from "../models/Reminder.js";
 import { VisitType } from "../models/VisitType.js";
 import { SchedulingSlotLock } from "../models/SchedulingSlotLock.js";
+import { Referral } from "../models/Referral.js";
 import { isRangeWithinAvailability, parseClinicDateTime } from "./availabilityService.js";
 import { mockEligibilityCheck } from "./mockEligibility.js";
 import { ApiError } from "../utils/ApiError.js";
+import { notifyStaffUsers } from "./staffNotificationService.js";
 
 const useSession = (query, session) => session ? query.session(session) : query;
 let schedulingLockIndexReady;
@@ -33,7 +36,15 @@ export async function bookAppointment({ tenantId, locationId, actorUserId, actor
       throw error;
     } finally { await transactionSession.endSession(); }
   }
-  const patient = await useSession(Patient.findOne({ _id: payload.patientId, tenantId, locationId }), session).lean();
+  let referral = null;
+  if (payload.referralId) {
+    if (!mongoose.isValidObjectId(payload.referralId)) throw new ApiError(400, "Invalid referral selected for this appointment");
+    referral = await useSession(Referral.findOne({ _id: payload.referralId, tenantId, targetLocationId: locationId, patientId: payload.patientId, targetDoctorId: payload.doctorId, status: { $in: ["sent", "received"] } }), session).lean();
+    if (!referral) throw new ApiError(409, "This referral is no longer open for the selected patient and Doctor");
+  }
+  // Cross-branch referrals retain the origin patient record. A linked referral is the
+  // explicit authorization for Front-desk at the receiving branch to schedule it.
+  const patient = await useSession(Patient.findOne({ _id: payload.patientId, tenantId, ...(referral ? {} : { locationId }) }), session).lean();
   if (!patient) throw new ApiError(404, "Patient not found in this location");
 
   const doctor = await useSession(User.findOne({ _id: payload.doctorId, tenantId, locationId, role: "doctor", isActive: { $ne: false } }), session).lean();
@@ -96,7 +107,7 @@ export async function bookAppointment({ tenantId, locationId, actorUserId, actor
     }
   }
 
-  const appointment = new Appointment({ tenantId, locationId, patientId: patient._id, doctorId: doctor._id, visitType, visitTypeId, durationMinutes, scheduledAt, resourceId: resource?._id, isOverbooked, override: conflictTypes.length ? { reason: overrideReason, conflictTypes, conflictingAppointmentIds: [...doctorConflicts, ...resourceConflicts].map((item) => item._id), actorUserId, timestamp: new Date() } : undefined, eligibilityStatus: mockEligibilityCheck(patient), eligibilityCheckedAt: new Date(), createdBy: actorUserId || undefined, bookedBy: selfScheduling ? "patient" : "staff" });
+  const appointment = new Appointment({ tenantId, locationId, patientId: patient._id, doctorId: doctor._id, visitType, visitTypeId, durationMinutes, scheduledAt, resourceId: resource?._id, isOverbooked, override: conflictTypes.length ? { reason: overrideReason, conflictTypes, conflictingAppointmentIds: [...doctorConflicts, ...resourceConflicts].map((item) => item._id), actorUserId, timestamp: new Date() } : undefined, eligibilityStatus: mockEligibilityCheck(patient), eligibilityCheckedAt: new Date(), createdBy: actorUserId || undefined, bookedBy: selfScheduling ? "patient" : "staff", referralId: referral?._id });
   if (!isOverbooked) {
     const capacityKeys = [`doctor:${doctor._id}`, ...(resource ? [`resource:${resource._id}`] : [])];
     const locks = [];
@@ -109,7 +120,25 @@ export async function bookAppointment({ tenantId, locationId, actorUserId, actor
     }
   }
   await appointment.save({ session: session || undefined });
+  if (referral) {
+    const now = new Date();
+    const scheduledReferral = await Referral.findOneAndUpdate(
+      { _id: referral._id, tenantId, targetLocationId: locationId, status: { $in: ["sent", "received"] } },
+      { $set: { status: "scheduled" }, $push: { statusHistory: { status: "scheduled", actor: actorUserId, timestamp: now } } },
+      { new: true, session },
+    );
+    if (!scheduledReferral) throw new ApiError(409, "This referral was already scheduled or closed");
+    referral = scheduledReferral.toObject();
+    await notifyStaffUsers({ tenantId, locationId, recipientUserIds: [referral.targetDoctorId], type: "referral_scheduled", title: "Referral visit scheduled", body: "Front-desk booked the specialist visit. It will appear in My Queue after check-in.", targetPath: "/my-referrals", targetId: referral._id, session });
+  } else if (!selfScheduling && actorUserId) {
+    await notifyStaffUsers({ tenantId, locationId, recipientUserIds: [doctor._id], type: "appointment_booked", title: "New appointment booked", body: `Front-desk booked ${visitType} for ${patient.name}.`, targetPath: "/queue", targetId: appointment._id, session });
+  }
   const audits = [{ tenantId, locationId, ...(actorUserId ? { actorUserId } : { actorPatientId }), action: selfScheduling ? "patient_portal_appointment_booked" : "appointment_booked", targetType: "Appointment", targetId: appointment._id }];
+  if (referral) {
+    for (const referralLocationId of [...new Set([String(referral.originLocationId), String(referral.targetLocationId)])]) {
+      audits.push({ tenantId, locationId: referralLocationId, actorUserId, action: "referral_status_updated", targetType: "Referral", targetId: referral._id });
+    }
+  }
   if (conflictTypes.length) audits.push({ tenantId, locationId, actorUserId, action: "appointment_override_recorded", targetType: "Appointment", targetId: appointment._id });
   // Voice and email remain future integrations. Only an explicit SMS rule creates a real reminder.
   const rules = (location?.schedulingSettings?.reminderRules || []).filter((rule) => rule.channel === "sms");
@@ -126,4 +155,3 @@ export async function releaseAppointmentSlotLocks({ tenantId, locationId, appoin
   if (session) query.session(session);
   await query;
 }
-import mongoose from "mongoose";

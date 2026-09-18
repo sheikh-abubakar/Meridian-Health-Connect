@@ -31,11 +31,14 @@ const appointmentSchema = new mongoose.Schema(
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     bookedBy: { type: String, enum: ["staff", "patient"], default: "staff" },
+    // Present only when Front-desk books this visit to fulfil an incoming referral.
+    referralId: { type: mongoose.Schema.Types.ObjectId, ref: "Referral", index: true },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
 
 appointmentSchema.index({ tenantId: 1, locationId: 1, scheduledAt: 1, status: 1 });
 appointmentSchema.index({ tenantId: 1, locationId: 1, resourceId: 1, scheduledAt: 1 });
+appointmentSchema.index({ tenantId: 1, locationId: 1, referralId: 1 });
 
 export const Appointment = mongoose.model("Appointment", appointmentSchema);

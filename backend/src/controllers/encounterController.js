@@ -15,7 +15,7 @@ function scopedEncounterQuery(query, req) {
   return query
     .populate({ path: "patientId", select: "name contact address", match })
     .populate({ path: "doctorId", select: "name email", match })
-    .populate({ path: "appointmentId", select: "visitType scheduledAt status", match })
+    .populate({ path: "appointmentId", select: "visitType scheduledAt status referralId", match })
     .populate({ path: "attachments.uploadedBy", select: "name role", match })
     .populate({ path: "amendments.actor", select: "name role", match });
 }

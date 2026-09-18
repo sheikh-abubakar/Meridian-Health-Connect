@@ -13,10 +13,11 @@ import { User } from "../models/User.js";
 import { RecallRequest } from "../models/RecallRequest.js";
 import { FormTemplate } from "../models/FormTemplate.js";
 import { AssignedForm } from "../models/AssignedForm.js";
+import { Referral } from "../models/Referral.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-const models = { User, Patient, Appointment, Encounter, EncounterTemplate, CarePlan, Task, RecallRequest, Availability, Resource, Waitlist, FormTemplate, AssignedForm };
+const models = { User, Patient, Appointment, Encounter, EncounterTemplate, CarePlan, Task, RecallRequest, Availability, Resource, Waitlist, FormTemplate, AssignedForm, Referral };
 const scope = (req) => ({ tenantId: req.tenantId, locationId: req.locationId });
 
 function targetLabel(type, target) {
@@ -33,6 +34,7 @@ function targetLabel(type, target) {
   if (type === "Waitlist") return `${target.patientId?.name || "Patient"} — waitlist`;
   if (type === "FormTemplate") return target.name;
   if (type === "AssignedForm") return `${target.patientId?.name || "Patient"} — ${target.formTemplateId?.name || "consent form"}`;
+  if (type === "Referral") return `${target.patientId?.name || "Patient"} — referral to ${target.targetDoctorId?.name || "doctor"}`;
   return type;
 }
 
@@ -44,9 +46,10 @@ async function resolveTargets(logs, req) {
     const Model = models[type];
     if (!Model) return;
     let query = Model.find({ _id: { $in: ids }, tenantId: req.tenantId });
-    if (type !== "User") query = query.find({ locationId: req.locationId });
-    if (["Appointment", "Encounter", "CarePlan", "RecallRequest", "Waitlist", "AssignedForm"].includes(type)) query = query.populate({ path: "patientId", select: "name", match: scope(req) });
+    if (!["User", "Referral"].includes(type)) query = query.find({ locationId: req.locationId });
+    if (["Appointment", "Encounter", "CarePlan", "RecallRequest", "Waitlist", "AssignedForm", "Referral"].includes(type)) query = query.populate({ path: "patientId", select: "name", match: { tenantId: req.tenantId } });
     if (type === "AssignedForm") query = query.populate({ path: "formTemplateId", select: "name", match: scope(req) });
+    if (type === "Referral") query = query.populate({ path: "targetDoctorId", select: "name", match: { tenantId: req.tenantId } });
     if (type === "Availability") query = query.populate({ path: "doctorId", select: "name", match: scope(req) });
     const targets = await query.lean();
     for (const target of targets) resolved.set(`${type}:${target._id}`, target);

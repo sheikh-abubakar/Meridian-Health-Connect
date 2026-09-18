@@ -27,6 +27,8 @@ import { reminderRouter } from "./routes/reminderRoutes.js";
 import { receiveMoceanDeliveryReceipt } from "./controllers/moceanWebhookController.js";
 import { patientPortalRouter } from "./routes/patientPortalRoutes.js";
 import { formTemplateRouter } from "./routes/formTemplateRoutes.js";
+import { referralRouter } from "./routes/referralRoutes.js";
+import { notificationRouter } from "./routes/notificationRoutes.js";
 
 export const app = express();
 
@@ -79,6 +81,8 @@ app.use("/api/:tenantSlug/:locationSlug/recall-requests", resolveTenant, resolve
 app.use("/api/:tenantSlug/:locationSlug/resources", resolveTenant, resolveLocation, resourceRouter);
 app.use("/api/:tenantSlug/:locationSlug/waitlist", resolveTenant, resolveLocation, waitlistRouter);
 app.use("/api/:tenantSlug/:locationSlug/reminders", resolveTenant, resolveLocation, reminderRouter);
+app.use("/api/:tenantSlug/:locationSlug/referrals", resolveTenant, resolveLocation, referralRouter);
+app.use("/api/:tenantSlug/:locationSlug/notifications", resolveTenant, resolveLocation, notificationRouter);
 app.use("/api/:tenantSlug/:locationSlug", resolveTenant, resolveLocation, directoryRouter);
 
 app.use(notFoundHandler);

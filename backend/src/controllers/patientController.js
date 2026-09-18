@@ -3,6 +3,7 @@ import { AuditLog } from "../models/AuditLog.js";
 import { Appointment } from "../models/Appointment.js";
 import { Encounter } from "../models/Encounter.js";
 import { Patient } from "../models/Patient.js";
+import { Referral } from "../models/Referral.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -73,9 +74,15 @@ export const searchPatients = asyncHandler(async (req, res) => {
 
 export const getPatient = asyncHandler(async (req, res) => {
   const scope = { tenantId: req.tenantId, locationId: req.locationId, patientId: req.params.id };
-  const patient = await Patient.findOne({ _id: req.params.id, tenantId: req.tenantId, locationId: req.locationId })
+  let patient = await Patient.findOne({ _id: req.params.id, tenantId: req.tenantId, locationId: req.locationId })
     .populate({ path: "editHistory.editedBy", select: "name role" })
     .lean();
+  // A receiving Doctor may open the same longitudinal profile for a referral-linked
+  // appointment, even when the patient record originated at another branch.
+  if (!patient && req.user.role === "doctor") {
+    const referralAccess = await Referral.exists({ tenantId: req.tenantId, targetLocationId: req.locationId, targetDoctorId: req.user._id, patientId: req.params.id });
+    if (referralAccess) patient = await Patient.findOne({ _id: req.params.id, tenantId: req.tenantId }).populate({ path: "editHistory.editedBy", select: "name role" }).lean();
+  }
   if (!patient) throw new ApiError(404, "Patient not found in this location");
   const encounterQuery = Encounter.find(scope)
     .populate({ path: "doctorId", select: "name", match: { tenantId: req.tenantId, locationId: req.locationId } })

@@ -27,6 +27,7 @@ import { PortalActivationPage } from "@/pages/PortalActivationPage";
 import { PortalDashboardPage } from "@/pages/PortalDashboardPage";
 import { LandingPage } from "@/pages/LandingPage";
 import { ConsentFormsPage } from "@/pages/ConsentFormsPage";
+import { MyReferralsPage } from "@/pages/MyReferralsPage";
 
 export default function App() {
   return <Routes>
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="availability" element={<RequireRole roles={["doctor"]}><AvailabilityPage /></RequireRole>} />
         <Route path="queue" element={<RequireRole roles={["doctor"]}><QueuePage /></RequireRole>} />
         <Route path="my-patients" element={<RequireRole roles={["doctor"]}><MyPatientsPage /></RequireRole>} />
+        <Route path="my-referrals" element={<RequireRole roles={["doctor"]}><MyReferralsPage /></RequireRole>} />
         <Route path="my-care-plans" element={<RequireRole roles={["doctor", "care_coordinator"]}><MyCarePlansPage /></RequireRole>} />
         <Route path="tasks" element={<RequireRole roles={["care_coordinator"]}><MyTasksPage /></RequireRole>} />
         <Route path="encounters/:encounterId" element={<RequireRole roles={["doctor"]}><EncounterPage /></RequireRole>} />

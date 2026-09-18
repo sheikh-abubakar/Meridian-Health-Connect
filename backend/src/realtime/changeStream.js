@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { locationRoom, patientRoom } from "./socketServer.js";
+import { locationRoom, patientRoom, userRoom } from "./socketServer.js";
 
 const collections = {
   patients: { insert: "patient:created", update: "patient:updated", replace: "patient:updated" },
@@ -20,6 +20,8 @@ const collections = {
   messages: { insert: "message:created" },
   formtemplates: { insert: "formtemplate:created", update: "formtemplate:updated", replace: "formtemplate:updated" },
   assignedforms: { insert: "assignedform:created", update: "assignedform:updated", replace: "assignedform:updated" },
+  referrals: { insert: "referral:created", update: "referral:updated", replace: "referral:updated" },
+  notifications: { insert: "notification:created", update: "notification:updated" },
 };
 
 function encounterEvent(change) {
@@ -39,7 +41,12 @@ export function startRealtimeChangeStream(io) {
     let event = config[change.operationType];
     if (collectionName === "encounters" && ["update", "replace"].includes(change.operationType)) event = encounterEvent(change);
     if (!event) return;
-    const targets = document.locationId ? [locationRoom(document.tenantId, document.locationId)] : [];
+    const targets = document.locationId && collectionName !== "notifications" ? [locationRoom(document.tenantId, document.locationId)] : [];
+    if (collectionName === "referrals") {
+      targets.push(locationRoom(document.tenantId, document.originLocationId));
+      if (String(document.targetLocationId) !== String(document.originLocationId)) targets.push(locationRoom(document.tenantId, document.targetLocationId));
+    }
+    if (collectionName === "notifications" && document.recipientUserId) targets.push(userRoom(document.tenantId, document.recipientUserId));
     if (["messages", "assignedforms"].includes(collectionName) && document.patientId) targets.push(patientRoom(document.tenantId, document.patientId));
     if (collectionName === "specialties") {
       // Specialties are tenant-wide; notify each connected location only within that tenant.
