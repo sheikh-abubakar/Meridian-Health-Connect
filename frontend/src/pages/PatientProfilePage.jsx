@@ -11,6 +11,7 @@ import { useAuth } from "@/context/auth-context";
 import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 import { formatClinicDateTime } from "@/lib/schedule";
 import { PatientSearchStep } from "@/components/PatientSearchStep";
+import { MonitoringSection } from "@/components/MonitoringSection";
 
 const day = (value) => new Intl.DateTimeFormat("en-PK", { dateStyle: "medium" }).format(new Date(value));
 
@@ -127,6 +128,7 @@ export function PatientProfilePage() {
     <HouseholdCard root={root} patientId={patientId} patient={patient} headers={headers} canManage={["frontdesk", "admin"].includes(session.user.role)} navigate={navigate} />
     <Card className="mt-6 bg-white shadow-none"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><GitBranchPlus className="size-5 text-violet-700" /> Create referral</CardTitle><CardDescription>Send a finalized clinical encounter to an appropriate doctor.</CardDescription></CardHeader><CardContent><PatientReferralCreateAction root={root} encounters={encounters} canCreate={session.user.role === "doctor"} navigate={navigate} /></CardContent></Card>
     <PatientReferralsCard root={root} patientId={patientId} headers={headers} />
+    <MonitoringSection root={root} patientId={patientId} headers={headers} role={session.user.role} />
     {["frontdesk", "admin"].includes(session.user.role) && <AssignedFormsCard root={root} patientId={patientId} headers={headers} canManage />}
     {["frontdesk", "admin"].includes(session.user.role) && <CompletedFormEvidenceCard root={root} patientId={patientId} headers={headers} />}
     <MessagesCard root={root} patientId={patientId} headers={headers} />

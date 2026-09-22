@@ -9,6 +9,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { generateClinicalSummary, GROQ_SUMMARY_MODEL } from "../services/groqSummaryService.js";
 import { assertAllowedAttachment, deleteClinicalAttachment, signedClinicalAttachmentUrl, uploadClinicalAttachment } from "../services/s3AttachmentService.js";
+import { notifyPatient } from "../services/staffNotificationService.js";
 
 function scopedEncounterQuery(query, req) {
   const match = { tenantId: req.tenantId, locationId: req.locationId };
@@ -51,6 +52,17 @@ function cleanTemplateAnswers(encounter, input) {
 function missingTemplateFields(encounter) {
   const answers = encounter.templateAnswers instanceof Map ? Object.fromEntries(encounter.templateAnswers) : (encounter.templateAnswers || {});
   return (encounter.templateSnapshot?.fields || []).filter((field) => field.required && (field.type === "checkbox" ? answers[field.key] !== true : !String(answers[field.key] ?? "").trim()));
+}
+
+function cleanPrescription(input) {
+  if (!Array.isArray(input)) return [];
+  if (input.length > 20) throw new ApiError(400, "A prescription can contain at most 20 medicines");
+  return input.map((item, index) => {
+    const medicineName = String(item?.medicineName || "").trim(); const strength = String(item?.strength || "").trim(); const frequency = String(item?.frequency || "").trim(); const duration = String(item?.duration || "").trim(); const instructions = String(item?.instructions || "").trim();
+    if (!medicineName || !strength || !frequency || !duration) throw new ApiError(400, `Medicine ${index + 1} needs name, strength, frequency, and duration`);
+    if ([medicineName, strength, frequency, duration, instructions].some((value) => value.length > 1000)) throw new ApiError(400, `Medicine ${index + 1} has an overly long field`);
+    return { medicineName, strength, frequency, duration, instructions };
+  });
 }
 
 function encounterFilter(req) {
@@ -161,6 +173,7 @@ export const updateDraft = asyncHandler(async (req, res) => {
     }
   }
   if (Object.hasOwn(req.body, "templateAnswers")) encounter.templateAnswers = cleanTemplateAnswers(encounter, req.body.templateAnswers);
+  if (Object.hasOwn(req.body, "prescriptionItems")) encounter.prescription.items = cleanPrescription(req.body.prescriptionItems);
   await encounter.save();
 
   const populated = await scopedEncounterQuery(Encounter.findOne(encounterFilter(req)), req).lean();
@@ -221,6 +234,7 @@ export const finalizeEncounter = asyncHandler(async (req, res) => {
 
       encounter.status = "finalized";
       encounter.finalizedAt = new Date();
+      if (encounter.prescription?.items?.length) encounter.prescription.issuedAt = new Date();
       appointment.status = "completed";
       await encounter.save({ session });
       await appointment.save({ session });
@@ -241,13 +255,14 @@ export const finalizeEncounter = asyncHandler(async (req, res) => {
       }, ...missing.map((field) => ({
         tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id,
         action: "encounter_template_required_override", targetType: "Encounter", targetId: encounter._id,
-      }))], { session, ordered: true });
+      })), ...(encounter.prescription?.items?.length ? [{ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "prescription_issued", targetType: "Encounter", targetId: encounter._id }] : [])], { session, ordered: true });
     });
   } finally {
     await session.endSession();
   }
 
   const populated = await scopedEncounterQuery(Encounter.findOne(encounterFilter(req)), req).lean();
+  if (populated.prescription?.items?.length) await notifyPatient({ tenantId: req.tenantId, locationId: req.locationId, patientId: populated.patientId?._id || populated.patientId, type: "patient_prescription_issued", title: "New prescription available", body: "Your clinician issued a prescription after your completed visit.", targetPath: "/portal?view=prescriptions", targetId: populated._id });
   res.json({ success: true, data: { encounter: presentEncounter(populated) } });
 });
 

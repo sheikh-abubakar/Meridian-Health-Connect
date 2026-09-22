@@ -72,6 +72,8 @@ export function ResourcesPage() {
     selfSchedulingBlackouts: [],
     patientMessageExpectedResponseHours: 24,
     patientMessageFlagToAdminAfterHours: 48,
+    monitoringDoctorReviewAfterDays: 5,
+    monitoringAdherenceAfterDays: 5,
     showCarePlansInPatientPortal: false,
   });
   const [blackout, setBlackout] = useState({ startDate: "", endDate: "" }),
@@ -106,6 +108,8 @@ export function ResourcesPage() {
             p.patientMessageExpectedResponseHours ?? 24,
           patientMessageFlagToAdminAfterHours:
             p.patientMessageFlagToAdminAfterHours ?? 48,
+          monitoringDoctorReviewAfterDays: p.monitoringDoctorReviewAfterDays ?? 5,
+          monitoringAdherenceAfterDays: p.monitoringAdherenceAfterDays ?? 5,
           showCarePlansInPatientPortal: Boolean(p.showCarePlansInPatientPortal),
         });
       })
@@ -219,6 +223,8 @@ export function ResourcesPage() {
           patientMessageFlagToAdminAfterHours: Number(
             settings.patientMessageFlagToAdminAfterHours,
           ),
+          monitoringDoctorReviewAfterDays: Number(settings.monitoringDoctorReviewAfterDays),
+          monitoringAdherenceAfterDays: Number(settings.monitoringAdherenceAfterDays),
           showCarePlansInPatientPortal: settings.showCarePlansInPatientPortal,
         }),
       });
@@ -560,6 +566,7 @@ export function ResourcesPage() {
                   </div>
                 </div>
               </div>
+              <div className="rounded-lg border bg-slate-50 p-4"><Label>Remote patient monitoring</Label><p className="mt-1 text-sm text-muted-foreground">Set reminders for monitoring review and missing self-reported readings.</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><div><Label>Doctor review reminder (days)</Label><Input className="mt-1" type="number" min="1" value={settings.monitoringDoctorReviewAfterDays} onChange={(e) => setSettings({ ...settings, monitoringDoctorReviewAfterDays: e.target.value })} /></div><div><Label>Adherence outreach after (days)</Label><Input className="mt-1" type="number" min="1" value={settings.monitoringAdherenceAfterDays} onChange={(e) => setSettings({ ...settings, monitoringAdherenceAfterDays: e.target.value })} /></div></div></div>
               <div className="flex items-center justify-between gap-4 rounded-lg border bg-teal-50/50 p-4"><div><Label>Patient portal care plans</Label><p className="mt-1 text-sm text-muted-foreground">Show patient-safe care-plan summaries in the portal. Staff-only task notes and history remain private.</p></div><input className="size-5 shrink-0 accent-teal-700" type="checkbox" checked={settings.showCarePlansInPatientPortal} onChange={(e) => setSettings({ ...settings, showCarePlansInPatientPortal: e.target.checked })} aria-label="Show care plans to patients in the portal" /></div>
               <div className="rounded-lg border bg-slate-50 p-4">
                 <Label>Patient self-scheduling blackout windows</Label>

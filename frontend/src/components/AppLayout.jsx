@@ -1,5 +1,6 @@
 import { createElement, useEffect, useRef, useState } from "react";
 import {
+  Activity,
   ArrowLeft,
   Bell,
   Boxes,
@@ -316,6 +317,13 @@ export function AppLayout() {
       "Care coordination",
       `${root}/tasks`,
       ClipboardCheck,
+      session.user.role === "care_coordinator",
+    ],
+    [
+      "Monitoring Adherence",
+      "Care coordination",
+      `${root}/monitoring-adherence`,
+      Activity,
       session.user.role === "care_coordinator",
     ],
   ].filter((item) => item[4]);

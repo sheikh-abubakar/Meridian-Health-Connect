@@ -18,6 +18,14 @@ const attachmentSchema = new mongoose.Schema({
   uploadedAt: { type: Date, default: Date.now, immutable: true },
 }, { _id: true });
 
+const prescriptionItemSchema = new mongoose.Schema({
+  medicineName: { type: String, required: true, trim: true, maxlength: 160 },
+  strength: { type: String, required: true, trim: true, maxlength: 80 },
+  frequency: { type: String, required: true, trim: true, maxlength: 120 },
+  duration: { type: String, required: true, trim: true, maxlength: 120 },
+  instructions: { type: String, trim: true, maxlength: 1000, default: "" },
+}, { _id: true });
+
 const encounterSchema = new mongoose.Schema(
   {
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
@@ -44,6 +52,10 @@ const encounterSchema = new mongoose.Schema(
       timestamp: { type: Date, default: Date.now, immutable: true },
     }],
     attachments: { type: [attachmentSchema], default: [] },
+    prescription: {
+      items: { type: [prescriptionItemSchema], default: [] },
+      issuedAt: { type: Date, default: null },
+    },
     aiSummary: {
       text: { type: String, trim: true, maxlength: 10000 },
       generatedAt: { type: Date },
@@ -64,7 +76,7 @@ encounterSchema.index(
 encounterSchema.index({ tenantId: 1, locationId: 1, patientId: 1, createdAt: -1 });
 
 encounterSchema.pre("save", async function preventFinalizedClinicalMutation() {
-  if (this.isNew || (!this.isModified("notes") && !this.isModified("aiSummary") && !this.isModified("templateAnswers") && !this.isModified("templateSnapshot") && !this.isModified("templateRequiredOverrides") && !this.isModified("attachments"))) return;
+  if (this.isNew || (!this.isModified("notes") && !this.isModified("aiSummary") && !this.isModified("templateAnswers") && !this.isModified("templateSnapshot") && !this.isModified("templateRequiredOverrides") && !this.isModified("attachments") && !this.isModified("prescription"))) return;
   const persisted = await this.constructor.findOne({
     _id: this._id,
     tenantId: this.tenantId,

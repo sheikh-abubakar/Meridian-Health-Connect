@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The monitoring chart can contain many readings; compact labels stay readable and do not dominate the graph. */
+svg[aria-label="Time-series monitoring chart"] text {
+  font-size: 7px !important;
+}
+
 @layer base {
   :root {
     --background: 210 40% 98%; --foreground: 222 47% 11%;

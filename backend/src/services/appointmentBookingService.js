@@ -13,7 +13,7 @@ import { Referral } from "../models/Referral.js";
 import { isRangeWithinAvailability, parseClinicDateTime } from "./availabilityService.js";
 import { mockEligibilityCheck } from "./mockEligibility.js";
 import { ApiError } from "../utils/ApiError.js";
-import { notifyStaffUsers } from "./staffNotificationService.js";
+import { notifyPatient, notifyStaffUsers } from "./staffNotificationService.js";
 
 const useSession = (query, session) => session ? query.session(session) : query;
 let schedulingLockIndexReady;
@@ -132,6 +132,7 @@ export async function bookAppointment({ tenantId, locationId, actorUserId, actor
     await notifyStaffUsers({ tenantId, locationId, recipientUserIds: [referral.targetDoctorId], type: "referral_scheduled", title: "Referral visit scheduled", body: "Front-desk booked the specialist visit. It will appear in My Queue after check-in.", targetPath: "/my-referrals", targetId: referral._id, session });
   } else if (!selfScheduling && actorUserId) {
     await notifyStaffUsers({ tenantId, locationId, recipientUserIds: [doctor._id], type: "appointment_booked", title: "New appointment booked", body: `Front-desk booked ${visitType} for ${patient.name}.`, targetPath: "/queue", targetId: appointment._id, session });
+    if (patient.portalActivated) await notifyPatient({ tenantId, locationId, patientId: patient._id, type: "patient_appointment_booked", title: "Appointment booked", body: `Your clinic booked a ${visitType} appointment with ${doctor.name}.`, targetPath: "/portal?view=appointments", targetId: appointment._id, session });
   }
   const audits = [{ tenantId, locationId, ...(actorUserId ? { actorUserId } : { actorPatientId }), action: selfScheduling ? "patient_portal_appointment_booked" : "appointment_booked", targetType: "Appointment", targetId: appointment._id }];
   if (referral) {

@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bell,
   CalendarPlus,
   ClipboardList,
@@ -15,12 +16,15 @@ import {
   Plus,
   Send,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { apiRequest, openPdfPreview } from "@/api/client";
 import { clearPortalSession, readPortalSession } from "@/portal/portal-session";
 import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 import { PatientConsentForms } from "@/components/PatientConsentForms";
+import { PortalMonitoringSection } from "@/components/PortalMonitoringSection";
+import { PortalAppointmentsSection } from "@/components/PortalAppointmentsSection";
+import { PortalPrescriptionsSection } from "@/components/PortalPrescriptionsSection";
 const stamp = (value) =>
   new Intl.DateTimeFormat("en-PK", {
     weekday: "short",
@@ -147,6 +151,12 @@ function Chat({ messages, onSend, sending, expected }) {
     </section>
   );
 }
+
+function PortalMonitoring({ enrollments, headers, onSaved }) {
+  const [values, setValues] = useState({}); const [error, setError] = useState("");
+  async function submit(enrollment, event) { event.preventDefault(); const value = values[enrollment.id] || {}; try { await apiRequest(`/patient-portal/monitoring/${enrollment.id}/readings`, { method: "POST", headers, body: JSON.stringify(value) }); setValues((current) => ({ ...current, [enrollment.id]: {} })); onSaved(); } catch (e) { setError(e.message); } }
+  return <><h1 className="text-3xl font-bold">My Monitoring</h1><p className="mt-2 text-slate-600">Enter your readings as agreed with your care team. The clinic reviews the values; this page does not provide medical advice.</p>{error && <p className="mt-4 rounded-xl bg-red-50 p-4 text-red-800">{error}</p>}<div className="mt-6 space-y-4">{enrollments.map((enrollment) => { const value = values[enrollment.id] || {}; return <article key={enrollment.id} className="rounded-2xl border bg-white p-5 shadow-sm"><h2 className="text-xl font-bold">{enrollment.typeLabel}</h2><p className="mt-1 text-sm text-slate-600">Your agreed target range: {enrollment.targetRange.min}–{enrollment.targetRange.max}</p><form className="mt-5 grid gap-3" onSubmit={(event) => submit(enrollment, event)}>{enrollment.type === "blood_pressure" ? <div className="grid gap-3 sm:grid-cols-2"><label className="font-bold">Top number<input className="mt-2 min-h-12 w-full rounded-xl border p-3" type="number" value={value.systolic || ""} onChange={(event) => setValues({ ...values, [enrollment.id]: { ...value, systolic: event.target.value } })} required /></label><label className="font-bold">Bottom number<input className="mt-2 min-h-12 w-full rounded-xl border p-3" type="number" value={value.diastolic || ""} onChange={(event) => setValues({ ...values, [enrollment.id]: { ...value, diastolic: event.target.value } })} required /></label></div> : <label className="font-bold">Reading<input className="mt-2 min-h-12 w-full rounded-xl border p-3" type="number" value={value.value || ""} onChange={(event) => setValues({ ...values, [enrollment.id]: { ...value, value: event.target.value } })} required /></label>}<label className="font-bold">Note (optional)<input className="mt-2 min-h-12 w-full rounded-xl border p-3" value={value.note || ""} onChange={(event) => setValues({ ...values, [enrollment.id]: { ...value, note: event.target.value } })} /></label><button className="min-h-12 rounded-xl bg-teal-700 font-bold text-white">Add reading</button></form></article>; })}</div></>;
+}
 export function PortalDashboardPage() {
   const session = readPortalSession();
   const navigate = useNavigate();
@@ -162,10 +172,17 @@ export function PortalDashboardPage() {
     "appointment:created",
     "assignedform:created",
     "assignedform:updated",
+    "monitoringenrollment:created",
+    "monitoringenrollment:updated",
+    "monitoringreading:created",
+    "monitoringreading:updated",
+    "notification:created",
   ]);
   const [data, setData] = useState(null),
     [appointments, setAppointments] = useState({ upcoming: [], past: [] }),
     [carePlans, setCarePlans] = useState({ enabled: false, carePlans: [] }),
+    [monitoring, setMonitoring] = useState([]),
+    [prescriptions, setPrescriptions] = useState([]),
     [forms, setForms] = useState([]),
     [chat, setChat] = useState({ messages: [], expectedResponseHours: 24 }),
     [view, setView] = useState("home"),
@@ -184,6 +201,7 @@ export function PortalDashboardPage() {
     [notifications, setNotifications] = useState([]),
     [notificationsOpen, setNotificationsOpen] = useState(false),
     [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const notificationPanelRef = useRef(null);
   const load = () =>
     Promise.all([
       apiRequest("/patient-portal/session", { headers }),
@@ -191,12 +209,18 @@ export function PortalDashboardPage() {
       apiRequest("/patient-portal/messages", { headers }),
       apiRequest("/patient-portal/care-plans", { headers }),
       apiRequest("/patient-portal/forms", { headers }),
-    ]).then(([profile, visits, messages, plans, assignedForms]) => {
+      apiRequest("/patient-portal/monitoring", { headers }),
+      apiRequest("/patient-portal/prescriptions", { headers }),
+      apiRequest("/patient-portal/notifications", { headers }),
+    ]).then(([profile, visits, messages, plans, assignedForms, monitoringData, prescriptionData, portalNotifications]) => {
       setData(profile);
       setAppointments(visits);
       setChat(messages);
       setCarePlans(plans);
       setForms(assignedForms.forms || []);
+      setMonitoring(monitoringData.enrollments || []);
+      setPrescriptions(prescriptionData.prescriptions || []);
+      setNotifications(portalNotifications.notifications || []);
     });
   useEffect(() => {
     if (session?.accessToken)
@@ -219,6 +243,16 @@ export function PortalDashboardPage() {
     window.addEventListener("meridian:realtime", receive);
     return () => window.removeEventListener("meridian:realtime", receive);
   }, []);
+  useEffect(() => {
+    if (!notificationsOpen) return undefined;
+    const close = (event) => {
+      if (!notificationPanelRef.current?.contains(event.target)) setNotificationsOpen(false);
+    };
+    const escape = (event) => { if (event.key === "Escape") setNotificationsOpen(false); };
+    document.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", close); window.removeEventListener("keydown", escape); };
+  }, [notificationsOpen]);
   useEffect(() => {
     if (booking.visitTypeId && booking.doctorId && booking.date)
       apiRequest(
@@ -310,9 +344,12 @@ export function PortalDashboardPage() {
         <nav className="mt-6 space-y-2">
           {[
             ["home", Home, "Home"],
+            ["appointments", CalendarDays, "My appointments"],
             ["book", CalendarPlus, "Book appointment"],
+            ["prescriptions", ClipboardList, "My prescriptions"],
             ["chat", MessageCircle, "Messages"],
             ["forms", ClipboardSignature, "Forms"],
+            ...(monitoring.length ? [["monitoring", Activity, "My Monitoring"]] : []),
             ["past", History, "Past visits"],
             ...(carePlans.enabled
               ? [["plans", ClipboardList, "Care plans"]]
@@ -360,7 +397,7 @@ export function PortalDashboardPage() {
                 </p>
               </div>
             </div>
-            <div className="relative flex items-center gap-3">
+            <div className="relative flex items-center gap-3" ref={notificationPanelRef}>
               <button
                 className="relative grid size-10 place-items-center rounded-lg border text-teal-800"
                 aria-label="Care team message notifications"
@@ -376,7 +413,7 @@ export function PortalDashboardPage() {
               {notificationsOpen && (
                 <div className="absolute right-0 top-12 z-50 w-72 overflow-hidden rounded-xl border bg-white shadow-xl">
                   <div className="flex items-center justify-between border-b p-3">
-                    <b className="text-sm">Care team replies</b>
+                    <b className="text-sm">Notifications</b>
                     <button
                       className="text-xs text-teal-700"
                       onClick={() => setNotifications([])}
@@ -394,11 +431,12 @@ export function PortalDashboardPage() {
                             current.filter((entry) => entry.id !== item.id),
                           );
                           setNotificationsOpen(false);
-                          setView("chat");
+                          if (item.type !== "patient_message") apiRequest(`/patient-portal/notifications/${item.id}/read`, { method: "PATCH", headers }).catch(() => {});
+                          setView(item.type === "patient_appointment_booked" ? "appointments" : item.type === "patient_prescription_issued" ? "prescriptions" : "chat");
                         }}
                       >
                         <p className="text-sm font-semibold">
-                          New reply from care team
+                          {item.title || "New reply from care team"}
                         </p>
                         <p className="mt-1 line-clamp-2 text-xs text-slate-600">
                           {item.body}
@@ -407,7 +445,7 @@ export function PortalDashboardPage() {
                     ))
                   ) : (
                     <p className="p-4 text-center text-sm text-slate-500">
-                      No new replies.
+                      No new notifications.
                     </p>
                   )}
                 </div>
@@ -426,7 +464,11 @@ export function PortalDashboardPage() {
           </div>
         </header>
         <div className="mx-auto max-w-3xl px-5 py-9">
-          {view === "forms" ? (
+          {view === "appointments" ? (
+            <><button onClick={() => setView("home")} className="flex min-h-11 items-center gap-1 font-semibold text-teal-800"><ChevronLeft />Back to portal</button><div className="mt-4"><PortalAppointmentsSection appointments={appointments} /></div></>
+          ) : view === "prescriptions" ? (
+            <><button onClick={() => setView("home")} className="flex min-h-11 items-center gap-1 font-semibold text-teal-800"><ChevronLeft />Back to portal</button><div className="mt-4"><PortalPrescriptionsSection prescriptions={prescriptions} accessToken={session.accessToken} /></div></>
+          ) : view === "forms" ? (
             <PatientConsentForms
               forms={forms}
               headers={headers}
@@ -493,6 +535,8 @@ export function PortalDashboardPage() {
                 />
               </div>
             </>
+          ) : view === "monitoring" ? (
+            <><button onClick={() => setView("home")} className="flex min-h-11 items-center gap-1 font-semibold text-teal-800"><ChevronLeft />Back</button><div className="mt-4"><PortalMonitoringSection enrollments={monitoring} headers={headers} onSaved={load} /></div></>
           ) : view === "past" ? (
             <>
               <button

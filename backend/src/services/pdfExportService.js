@@ -594,3 +594,21 @@ export function renderVisitHistoryPdf(
   );
   doc.end();
 }
+
+export function renderPrescriptionPdf(res, { tenant, location, patient, encounter }) {
+  const doc = createDocument(res, `prescription-${encounter._id}.pdf`);
+  letterhead(doc, tenant, location, "Prescription", encounter.doctorId?.name);
+  sectionHeading(doc, "Patient & Visit");
+  metadataGrid(doc, [["Patient", patient.name], ["Issued", dateTime(encounter.prescription?.issuedAt || encounter.finalizedAt)], ["Visit type", encounter.appointmentId?.visitType], ["Prescription reference", `RX-${String(encounter._id).slice(-8).toUpperCase()}`]]);
+  sectionHeading(doc, "Medicines", "Take medicines exactly as advised by your clinician.");
+  (encounter.prescription?.items || []).forEach((item, index) => {
+    ensureSpace(doc, 92); const y = doc.y;
+    doc.roundedRect(left, y, contentWidth, 80, 6).fillAndStroke("#ffffff", "#dbe4eb");
+    doc.fillColor(palette.teal).font("Helvetica-Bold").fontSize(10).text(`${index + 1}. ${clean(item.medicineName)}`, left + 14, y + 12);
+    doc.fillColor(palette.text).font("Helvetica").fontSize(9).text(`${clean(item.strength)} · ${clean(item.frequency)} · ${clean(item.duration)}`, left + 14, y + 31, { width: contentWidth - 28 });
+    doc.fillColor(palette.muted).font("Helvetica").fontSize(8.5).text(clean(item.instructions, "No additional instructions"), left + 14, y + 49, { width: contentWidth - 28 });
+    doc.y = y + 90;
+  });
+  footer(doc, encounter.doctorId?.name || "Doctor", "Prescription generated from a finalized Meridian encounter.", "Issued by");
+  doc.end();
+}

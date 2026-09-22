@@ -29,6 +29,7 @@ import { patientPortalRouter } from "./routes/patientPortalRoutes.js";
 import { formTemplateRouter } from "./routes/formTemplateRoutes.js";
 import { referralRouter } from "./routes/referralRoutes.js";
 import { notificationRouter } from "./routes/notificationRoutes.js";
+import { monitoringRouter } from "./routes/monitoringRoutes.js";
 
 export const app = express();
 
@@ -83,6 +84,7 @@ app.use("/api/:tenantSlug/:locationSlug/waitlist", resolveTenant, resolveLocatio
 app.use("/api/:tenantSlug/:locationSlug/reminders", resolveTenant, resolveLocation, reminderRouter);
 app.use("/api/:tenantSlug/:locationSlug/referrals", resolveTenant, resolveLocation, referralRouter);
 app.use("/api/:tenantSlug/:locationSlug/notifications", resolveTenant, resolveLocation, notificationRouter);
+app.use("/api/:tenantSlug/:locationSlug/monitoring", resolveTenant, resolveLocation, monitoringRouter);
 app.use("/api/:tenantSlug/:locationSlug", resolveTenant, resolveLocation, directoryRouter);
 
 app.use(notFoundHandler);

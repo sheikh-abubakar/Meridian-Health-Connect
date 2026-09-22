@@ -3,6 +3,10 @@ import { Location } from "../models/Location.js";
 import { Task } from "../models/Task.js";
 import { MessageThread } from "../models/MessageThread.js";
 import { Message } from "../models/Message.js";
+import { MonitoringEnrollment } from "../models/MonitoringEnrollment.js";
+import { MonitoringReading } from "../models/MonitoringReading.js";
+import { User } from "../models/User.js";
+import { notifyStaffUsers } from "./staffNotificationService.js";
 import { locationRoom, userRoom } from "../realtime/socketServer.js";
 
 const dayMs = 24 * 60 * 60 * 1000;
@@ -50,6 +54,23 @@ export async function processTaskEscalations(io) {
         await AuditLog.create({ tenantId: location.tenantId, locationId: location._id, actorPatientId: thread.patientId, action: `patient_message_escalated_${key}`, targetType: "MessageThread", targetId: thread._id });
         const payload = { threadId: String(thread._id), patientId: String(thread.patientId), tier: key, occurredAt: now.toISOString() };
         io.to(locationRoom(location.tenantId, location._id)).emit("message:escalated", payload);
+      }
+    }
+  }
+  for (const location of locations) {
+    const settings = location.schedulingSettings || {}; const reviewDays = Number(settings.monitoringDoctorReviewAfterDays ?? 5); const adherenceDays = Number(settings.monitoringAdherenceAfterDays ?? 5);
+    const enrollments = await MonitoringEnrollment.find({ tenantId: location.tenantId, locationId: location._id, status: "active" }).populate({ path: "patientId", select: "name" }).lean();
+    const coordinators = await User.find({ tenantId: location.tenantId, locationId: location._id, role: "care_coordinator", isActive: { $ne: false } }).select("_id").lean();
+    for (const enrollment of enrollments) {
+      const latest = await MonitoringReading.findOne({ tenantId: location.tenantId, locationId: location._id, enrollmentId: enrollment._id }).sort({ recordedAt: -1 }).lean();
+      const reviewedAt = new Date(enrollment.lastReviewedAt || enrollment.createdAt); const latestAt = new Date(latest?.recordedAt || enrollment.createdAt);
+      if (now - reviewedAt >= reviewDays * dayMs && String(enrollment.reviewReminderSentFor || "") !== String(reviewedAt)) {
+        const claimed = await MonitoringEnrollment.findOneAndUpdate({ _id: enrollment._id, reviewReminderSentFor: { $ne: reviewedAt } }, { $set: { reviewReminderSentFor: reviewedAt } }, { new: true }).lean();
+        if (claimed) { await notifyStaffUsers({ tenantId: location.tenantId, locationId: location._id, recipientUserIds: [enrollment.enrolledByDoctorId], type: "monitoring_review_reminder", title: "Monitoring review reminder", body: `It's been ${reviewDays} days — review this patient's ${enrollment.type.replaceAll("_", " ")} trend.`, targetPath: `/patients/${enrollment.patientId?._id}`, targetId: enrollment._id }); await AuditLog.create({ tenantId: location.tenantId, locationId: location._id, actorUserId: enrollment.enrolledByDoctorId, action: "monitoring_review_reminder_sent", targetType: "MonitoringEnrollment", targetId: enrollment._id }); }
+      }
+      if (now - latestAt >= adherenceDays * dayMs && String(enrollment.adherenceReminderSentFor || "") !== String(latestAt)) {
+        const claimed = await MonitoringEnrollment.findOneAndUpdate({ _id: enrollment._id, adherenceReminderSentFor: { $ne: latestAt } }, { $set: { adherenceReminderSentFor: latestAt } }, { new: true }).lean();
+        if (claimed && coordinators.length) { await notifyStaffUsers({ tenantId: location.tenantId, locationId: location._id, recipientUserIds: coordinators.map((item) => item._id), type: "monitoring_adherence_reminder", title: "Monitoring adherence needs outreach", body: `No ${enrollment.type.replaceAll("_", " ")} readings from ${enrollment.patientId?.name || "patient"} in ${adherenceDays} days.`, targetPath: "/monitoring-adherence", targetId: enrollment._id }); await AuditLog.create({ tenantId: location.tenantId, locationId: location._id, actorUserId: coordinators[0]._id, action: "monitoring_adherence_reminder_sent", targetType: "MonitoringEnrollment", targetId: enrollment._id }); }
       }
     }
   }

@@ -22,6 +22,8 @@ const collections = {
   assignedforms: { insert: "assignedform:created", update: "assignedform:updated", replace: "assignedform:updated" },
   referrals: { insert: "referral:created", update: "referral:updated", replace: "referral:updated" },
   notifications: { insert: "notification:created", update: "notification:updated" },
+  monitoringenrollments: { insert: "monitoringenrollment:created", update: "monitoringenrollment:updated", replace: "monitoringenrollment:updated" },
+  monitoringreadings: { insert: "monitoringreading:created", update: "monitoringreading:updated", replace: "monitoringreading:updated" },
 };
 
 function encounterEvent(change) {
@@ -47,7 +49,8 @@ export function startRealtimeChangeStream(io) {
       if (String(document.targetLocationId) !== String(document.originLocationId)) targets.push(locationRoom(document.tenantId, document.targetLocationId));
     }
     if (collectionName === "notifications" && document.recipientUserId) targets.push(userRoom(document.tenantId, document.recipientUserId));
-    if (["messages", "assignedforms"].includes(collectionName) && document.patientId) targets.push(patientRoom(document.tenantId, document.patientId));
+    if (collectionName === "notifications" && document.recipientPatientId) targets.push(patientRoom(document.tenantId, document.recipientPatientId));
+    if (["messages", "assignedforms", "monitoringenrollments", "monitoringreadings"].includes(collectionName) && document.patientId) targets.push(patientRoom(document.tenantId, document.patientId));
     if (collectionName === "specialties") {
       // Specialties are tenant-wide; notify each connected location only within that tenant.
       for (const [room] of io.sockets.adapter.rooms) if (room.startsWith(`tenant:${document.tenantId}:location:`)) targets.push(room);

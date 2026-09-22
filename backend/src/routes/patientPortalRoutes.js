@@ -8,6 +8,10 @@ import {
   patientPortalCarePlans,
   patientPortalExport,
   patientPortalLogin,
+  patientPortalNotifications,
+  patientPortalPrescriptionPdf,
+  patientPortalPrescriptions,
+  markPatientPortalNotificationRead,
   patientPortalSession,
 } from "../controllers/patientPortalController.js";
 import { patientPortalForms, submitPatientPortalForm } from "../controllers/formTemplateController.js";
@@ -16,6 +20,7 @@ import {
   portalSendMessage,
 } from "../controllers/messageController.js";
 import { authenticatePatientPortal } from "../middleware/authenticatePatientPortal.js";
+import { patientPortalAddMonitoringReading, patientPortalMonitoring } from "../controllers/monitoringController.js";
 
 export const patientPortalRouter = Router();
 patientPortalRouter.get("/activate/:token", inspectActivation);
@@ -31,6 +36,10 @@ patientPortalRouter.get(
   authenticatePatientPortal,
   patientPortalAppointments,
 );
+patientPortalRouter.get("/notifications", authenticatePatientPortal, patientPortalNotifications);
+patientPortalRouter.patch("/notifications/:id/read", authenticatePatientPortal, markPatientPortalNotificationRead);
+patientPortalRouter.get("/prescriptions", authenticatePatientPortal, patientPortalPrescriptions);
+patientPortalRouter.get("/prescriptions/:encounterId/pdf", authenticatePatientPortal, patientPortalPrescriptionPdf);
 patientPortalRouter.get(
   "/booking-options",
   authenticatePatientPortal,
@@ -59,3 +68,5 @@ patientPortalRouter.get(
 );
 patientPortalRouter.get("/forms", authenticatePatientPortal, patientPortalForms);
 patientPortalRouter.post("/forms/:assignedFormId/submit", authenticatePatientPortal, submitPatientPortalForm);
+patientPortalRouter.get("/monitoring", authenticatePatientPortal, patientPortalMonitoring);
+patientPortalRouter.post("/monitoring/:enrollmentId/readings", authenticatePatientPortal, patientPortalAddMonitoringReading);

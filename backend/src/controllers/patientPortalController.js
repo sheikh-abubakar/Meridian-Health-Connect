@@ -18,6 +18,9 @@ import { CarePlan } from "../models/CarePlan.js";
 import { Task } from "../models/Task.js";
 import { getAdministrativeVisitHistory } from "../services/administrativeVisitHistoryService.js";
 import { renderVisitHistoryPdf } from "../services/pdfExportService.js";
+import { Notification } from "../models/Notification.js";
+import { Encounter } from "../models/Encounter.js";
+import { renderPrescriptionPdf } from "../services/pdfExportService.js";
 
 const cleanEmail = (value) =>
   String(value || "")
@@ -242,6 +245,30 @@ export const patientPortalAppointments = asyncHandler(async (req, res) => {
         .map(appointmentView),
     },
   });
+});
+
+const portalNotificationView = (item) => ({ id: item._id, type: item.type, title: item.title, body: item.body, targetPath: item.targetPath, targetId: item.targetId, createdAt: item.createdAt });
+export const patientPortalNotifications = asyncHandler(async (req, res) => {
+  const notifications = await Notification.find({ tenantId: req.tenantId, locationId: req.locationId, recipientPatientId: req.portalPatient._id, readAt: null }).sort({ createdAt: -1 }).limit(30).lean();
+  res.json({ success: true, data: { notifications: notifications.map(portalNotificationView) } });
+});
+export const markPatientPortalNotificationRead = asyncHandler(async (req, res) => {
+  const notification = await Notification.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenantId, locationId: req.locationId, recipientPatientId: req.portalPatient._id, readAt: null }, { $set: { readAt: new Date() } }, { new: true });
+  if (!notification) throw new ApiError(404, "Notification not found");
+  res.json({ success: true, data: { notification: portalNotificationView(notification) } });
+});
+
+const prescriptionView = (encounter) => ({ id: encounter._id, issuedAt: encounter.prescription?.issuedAt || encounter.finalizedAt, doctor: encounter.doctorId?.name || "Your clinician", visitType: encounter.appointmentId?.visitType || "Clinical visit", items: (encounter.prescription?.items || []).map((item) => ({ id: item._id, medicineName: item.medicineName, strength: item.strength, frequency: item.frequency, duration: item.duration, instructions: item.instructions || "" })) });
+export const patientPortalPrescriptions = asyncHandler(async (req, res) => {
+  const encounters = await Encounter.find({ tenantId: req.tenantId, locationId: req.locationId, patientId: req.portalPatient._id, status: "finalized", "prescription.items.0": { $exists: true } }).populate({ path: "doctorId", select: "name", match: { tenantId: req.tenantId, locationId: req.locationId } }).populate({ path: "appointmentId", select: "visitType", match: { tenantId: req.tenantId, locationId: req.locationId } }).sort({ finalizedAt: -1 }).lean();
+  res.json({ success: true, data: { prescriptions: encounters.map(prescriptionView) } });
+});
+export const patientPortalPrescriptionPdf = asyncHandler(async (req, res) => {
+  const encounter = await Encounter.findOne({ _id: req.params.encounterId, tenantId: req.tenantId, locationId: req.locationId, patientId: req.portalPatient._id, status: "finalized", "prescription.items.0": { $exists: true } }).populate({ path: "doctorId", select: "name", match: { tenantId: req.tenantId, locationId: req.locationId } }).populate({ path: "appointmentId", select: "visitType", match: { tenantId: req.tenantId, locationId: req.locationId } }).lean();
+  if (!encounter) throw new ApiError(404, "Prescription not found");
+  const [tenant, location] = await Promise.all([Tenant.findById(req.tenantId).lean(), Location.findOne({ _id: req.locationId, tenantId: req.tenantId }).lean()]);
+  await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorPatientId: req.portalPatient._id, action: "patient_prescription_viewed", targetType: "Encounter", targetId: encounter._id });
+  renderPrescriptionPdf(res, { tenant, location, patient: req.portalPatient, encounter });
 });
 function isBlackout(date, windows) {
   return (windows || []).some(
