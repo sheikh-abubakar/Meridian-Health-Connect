@@ -2,7 +2,8 @@ import mongoose from "mongoose";
 
 const statusHistorySchema = new mongoose.Schema({
   status: { type: String, enum: ["sent", "received", "scheduled", "completed"], required: true },
-  actor: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  actor: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  actorPatientId: { type: mongoose.Schema.Types.ObjectId, ref: "Patient" },
   timestamp: { type: Date, default: Date.now, immutable: true },
 }, { _id: true });
 

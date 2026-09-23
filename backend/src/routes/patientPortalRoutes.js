@@ -4,7 +4,10 @@ import {
   inspectActivation,
   patientPortalAppointments,
   patientPortalBookAppointment,
+  patientPortalCancelAppointment,
   patientPortalBookingOptions,
+  patientPortalRescheduleAppointment,
+  patientPortalRescheduleOptions,
   patientPortalCarePlans,
   patientPortalExport,
   patientPortalLogin,
@@ -36,6 +39,9 @@ patientPortalRouter.get(
   authenticatePatientPortal,
   patientPortalAppointments,
 );
+patientPortalRouter.get("/appointments/:id/reschedule-options", authenticatePatientPortal, patientPortalRescheduleOptions);
+patientPortalRouter.patch("/appointments/:id/cancel", authenticatePatientPortal, patientPortalCancelAppointment);
+patientPortalRouter.post("/appointments/:id/reschedule", authenticatePatientPortal, patientPortalRescheduleAppointment);
 patientPortalRouter.get("/notifications", authenticatePatientPortal, patientPortalNotifications);
 patientPortalRouter.patch("/notifications/:id/read", authenticatePatientPortal, markPatientPortalNotificationRead);
 patientPortalRouter.get("/prescriptions", authenticatePatientPortal, patientPortalPrescriptions);

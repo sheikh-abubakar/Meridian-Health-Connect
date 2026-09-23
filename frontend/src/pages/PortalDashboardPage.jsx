@@ -170,6 +170,7 @@ export function PortalDashboardPage() {
   const revision = useRealtimeRevision([
     "message:created",
     "appointment:created",
+    "appointment:updated",
     "assignedform:created",
     "assignedform:updated",
     "monitoringenrollment:created",
@@ -200,7 +201,14 @@ export function PortalDashboardPage() {
     [exportError, setExportError] = useState(""),
     [notifications, setNotifications] = useState([]),
     [notificationsOpen, setNotificationsOpen] = useState(false),
-    [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    [mobileMenuOpen, setMobileMenuOpen] = useState(false),
+    [appointmentChange, setAppointmentChange] = useState(null),
+    [changeDate, setChangeDate] = useState(""),
+    [changeTimes, setChangeTimes] = useState([]),
+    [changeTime, setChangeTime] = useState(""),
+    [changeReason, setChangeReason] = useState("schedule_conflict"),
+    [changeOther, setChangeOther] = useState(""),
+    [changingAppointment, setChangingAppointment] = useState(false);
   const notificationPanelRef = useRef(null);
   const load = () =>
     Promise.all([
@@ -263,6 +271,12 @@ export function PortalDashboardPage() {
         .catch((e) => setError(e.message));
     else setTimes([]);
   }, [booking.visitTypeId, booking.doctorId, booking.date, headers]);
+  useEffect(() => {
+    if (!appointmentChange || appointmentChange.mode !== "reschedule" || !changeDate) { setChangeTimes([]); return; }
+    apiRequest(`/patient-portal/appointments/${appointmentChange.item.id}/reschedule-options?date=${changeDate}`, { headers })
+      .then((data) => setChangeTimes(data.availableTimes || []))
+      .catch((e) => { setChangeTimes([]); setError(e.message); });
+  }, [appointmentChange, changeDate, headers]);
   if (!session?.accessToken) return <Navigate to="/portal/login" replace />;
   if (!data)
     return (
@@ -300,6 +314,21 @@ export function PortalDashboardPage() {
     } catch (e) {
       setError(e.message);
     }
+  }
+  function beginAppointmentChange(item, mode) {
+    setError(""); setAppointmentChange({ item, mode }); setChangeDate(""); setChangeTime(""); setChangeTimes([]); setChangeReason("schedule_conflict"); setChangeOther(""); setView("appointment-change");
+  }
+  async function submitAppointmentChange() {
+    if (!appointmentChange) return;
+    const { item, mode } = appointmentChange;
+    if (changeReason === "other" && changeOther.trim().length < 3) return setError("Please briefly tell your clinic why you need this change.");
+    if (mode === "reschedule" && (!changeDate || !changeTime)) return setError("Choose a new available date and time.");
+    setChangingAppointment(true); setError("");
+    try {
+      const body = { reasonCode: changeReason, reasonOther: changeOther, ...(mode === "reschedule" ? { scheduledAt: `${changeDate}T${changeTime}` } : {}) };
+      await apiRequest(`/patient-portal/appointments/${item.id}/${mode === "reschedule" ? "reschedule" : "cancel"}`, { method: mode === "reschedule" ? "POST" : "PATCH", headers, body: JSON.stringify(body) });
+      await load(); setAppointmentChange(null); setView("appointments");
+    } catch (e) { setError(e.message); } finally { setChangingAppointment(false); }
   }
   async function send(body) {
     setSending(true);
@@ -465,7 +494,19 @@ export function PortalDashboardPage() {
         </header>
         <div className="mx-auto max-w-3xl px-5 py-9">
           {view === "appointments" ? (
-            <><button onClick={() => setView("home")} className="flex min-h-11 items-center gap-1 font-semibold text-teal-800"><ChevronLeft />Back to portal</button><div className="mt-4"><PortalAppointmentsSection appointments={appointments} /></div></>
+            <><button onClick={() => setView("home")} className="flex min-h-11 items-center gap-1 font-semibold text-teal-800"><ChevronLeft />Back to portal</button><div className="mt-4"><PortalAppointmentsSection appointments={appointments} onCancel={(item) => beginAppointmentChange(item, "cancel")} onReschedule={(item) => beginAppointmentChange(item, "reschedule")} /></div></>
+          ) : view === "appointment-change" && appointmentChange ? (
+            <>
+              <button onClick={() => { setAppointmentChange(null); setView("appointments"); }} className="flex min-h-11 items-center gap-1 font-semibold text-teal-800"><ChevronLeft />Back to appointments</button>
+              <h1 className="mt-4 text-3xl font-bold">{appointmentChange.mode === "reschedule" ? "Reschedule appointment" : "Cancel appointment"}</h1>
+              <section className="mt-6 space-y-5 rounded-2xl border bg-white p-5 shadow-sm">
+                <div className="rounded-xl bg-slate-50 p-4"><p className="font-bold">{appointmentChange.item.visitType}</p><p className="mt-1 text-sm text-slate-700">{stamp(appointmentChange.item.scheduledAt)}</p><p className="mt-1 text-sm text-slate-500">With {appointmentChange.item.doctor}</p></div>
+                {appointmentChange.mode === "reschedule" && <><p className="text-sm text-slate-600">Your clinician and visit type stay the same. Choose a new available time.</p><label className="block font-bold">New date<input className="mt-2 min-h-12 w-full rounded-xl border p-3" min={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)} type="date" value={changeDate} onChange={(e) => { setChangeDate(e.target.value); setChangeTime(""); }} /></label>{changeDate && <label className="block font-bold">Available time<select className="mt-2 min-h-12 w-full rounded-xl border p-3" value={changeTime} onChange={(e) => setChangeTime(e.target.value)}><option value="">Choose a time</option>{changeTimes.map((time) => <option value={time} key={time}>{displayTime(time)}</option>)}</select>{!changeTimes.length && <p className="mt-2 text-sm text-slate-500">No available times on this date.</p>}</label>}</>}
+                <div><p className="font-bold">Why do you need this change?</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{[["schedule_conflict", "Schedule conflict"], ["feeling_better", "Feeling better"], ["travel", "Travel"], ["other", "Other"]].map(([value, label]) => <button key={value} onClick={() => setChangeReason(value)} className={`min-h-11 rounded-xl border px-3 text-left font-semibold ${changeReason === value ? "border-teal-700 bg-teal-50 text-teal-900" : "border-slate-200"}`}>{label}</button>)}</div>{changeReason === "other" && <textarea className="mt-3 min-h-24 w-full rounded-xl border p-3" maxLength="1000" value={changeOther} onChange={(e) => setChangeOther(e.target.value)} placeholder="Briefly tell your clinic why" />}</div>
+                {error && <p className="rounded-xl bg-red-50 p-4 text-red-800">{error}</p>}
+                <button onClick={submitAppointmentChange} disabled={changingAppointment || (appointmentChange.mode === "reschedule" && !changeTime)} className="min-h-12 w-full rounded-xl bg-teal-700 font-bold text-white disabled:opacity-50">{changingAppointment ? "Saving..." : appointmentChange.mode === "reschedule" ? "Confirm new appointment time" : "Confirm cancellation"}</button>
+              </section>
+            </>
           ) : view === "prescriptions" ? (
             <><button onClick={() => setView("home")} className="flex min-h-11 items-center gap-1 font-semibold text-teal-800"><ChevronLeft />Back to portal</button><div className="mt-4"><PortalPrescriptionsSection prescriptions={prescriptions} accessToken={session.accessToken} /></div></>
           ) : view === "forms" ? (

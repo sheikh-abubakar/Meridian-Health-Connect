@@ -13,7 +13,7 @@ import { Appointment } from "../models/Appointment.js";
 import { Availability } from "../models/Availability.js";
 import { User } from "../models/User.js";
 import { VisitType } from "../models/VisitType.js";
-import { bookAppointment } from "../services/appointmentBookingService.js";
+import { bookAppointment, cancelPatientAppointment, rescheduleAppointment } from "../services/appointmentBookingService.js";
 import { CarePlan } from "../models/CarePlan.js";
 import { Task } from "../models/Task.js";
 import { getAdministrativeVisitHistory } from "../services/administrativeVisitHistoryService.js";
@@ -210,6 +210,9 @@ const appointmentView = (item) => ({
   status: item.status,
   doctor: item.doctorId?.name || "Your clinician",
   bookedBy: item.bookedBy || "staff",
+  rescheduledAt: item.rescheduledAt || null,
+  rescheduledToAppointmentId: item.rescheduledToAppointmentId || null,
+  rescheduledFromAppointmentId: item.rescheduledFromAppointmentId || null,
 });
 export const patientPortalAppointments = asyncHandler(async (req, res) => {
   const now = new Date();
@@ -240,7 +243,7 @@ export const patientPortalAppointments = asyncHandler(async (req, res) => {
         .filter(
           (item) =>
             item.scheduledAt < now ||
-            ["completed", "cancelled", "no_show"].includes(item.status),
+            ["completed", "cancelled", "rescheduled", "no_show"].includes(item.status),
         )
         .map(appointmentView),
     },
@@ -400,6 +403,58 @@ export const patientPortalBookAppointment = asyncHandler(async (req, res) => {
   res
     .status(201)
     .json({ success: true, data: { appointment: appointmentView(item) } });
+});
+
+const patientChangeReasons = {
+  schedule_conflict: "Schedule conflict",
+  feeling_better: "Feeling better",
+  travel: "Travel",
+  other: "Other",
+};
+
+function patientChangeReason(body) {
+  const code = String(body.reasonCode || "").trim();
+  if (!patientChangeReasons[code]) throw new ApiError(400, "Choose a valid reason");
+  const other = String(body.reasonOther || "").trim();
+  if (code === "other" && other.length < 3) throw new ApiError(400, "Please briefly tell your clinic why you need this change");
+  return { code, reason: code === "other" ? other : patientChangeReasons[code] };
+}
+
+export const patientPortalCancelAppointment = asyncHandler(async (req, res) => {
+  const { code, reason } = patientChangeReason(req.body);
+  const appointment = await cancelPatientAppointment({ tenantId: req.tenantId, locationId: req.locationId, patientId: req.portalPatient._id, appointmentId: req.params.id, reasonCode: code, reason });
+  const item = await Appointment.findOne({ _id: appointment._id, tenantId: req.tenantId, locationId: req.locationId }).populate({ path: "doctorId", select: "name" }).lean();
+  res.json({ success: true, data: { appointment: appointmentView(item) } });
+});
+
+export const patientPortalRescheduleOptions = asyncHandler(async (req, res) => {
+  const appointment = await Appointment.findOne({ _id: req.params.id, tenantId: req.tenantId, locationId: req.locationId, patientId: req.portalPatient._id, status: "scheduled" }).populate({ path: "doctorId", select: "name" }).lean();
+  if (!appointment) throw new ApiError(404, "This appointment is not available to reschedule");
+  if (new Date(appointment.scheduledAt).getTime() - Date.now() < 24 * 60 * 60 * 1000) throw new ApiError(409, "Online changes close 24 hours before your appointment. Please contact your clinic.");
+  const date = String(req.query.date || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ApiError(400, "Choose a valid date");
+  const location = await Location.findOne({ _id: req.locationId, tenantId: req.tenantId }).select("schedulingSettings.selfSchedulingBlackouts").lean();
+  if (isBlackout(date, location?.schedulingSettings?.selfSchedulingBlackouts || [])) return res.json({ success: true, data: { appointment: appointmentView(appointment), availableTimes: [] } });
+  const availability = await Availability.findOne({ tenantId: req.tenantId, locationId: req.locationId, doctorId: appointment.doctorId._id }).lean();
+  const existing = await Appointment.find({ tenantId: req.tenantId, locationId: req.locationId, doctorId: appointment.doctorId._id, status: { $in: ["scheduled", "checked_in"] } }).select("scheduledAt durationMinutes").lean();
+  const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const availableTimes = (availability?.slots || []).filter((slot) => slot.dayOfWeek === dayOfWeek).flatMap((slot) => {
+    const [sh, sm] = slot.startTime.split(":").map(Number); const [eh, em] = slot.endTime.split(":").map(Number); const values = [];
+    for (let minute = sh * 60 + sm; minute + appointment.durationMinutes <= eh * 60 + em; minute += appointment.durationMinutes) {
+      const time = `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+      const start = new Date(`${date}T${time}:00+05:00`); const end = new Date(start.getTime() + appointment.durationMinutes * 60000);
+      if (!existing.some((item) => new Date(item.scheduledAt) < end && new Date(item.scheduledAt).getTime() + (item.durationMinutes || 30) * 60000 > start.getTime())) values.push(time);
+    }
+    return values;
+  });
+  res.json({ success: true, data: { appointment: appointmentView(appointment), availableTimes } });
+});
+
+export const patientPortalRescheduleAppointment = asyncHandler(async (req, res) => {
+  const { reason } = patientChangeReason(req.body);
+  const { original, replacement } = await rescheduleAppointment({ tenantId: req.tenantId, locationId: req.locationId, appointmentId: req.params.id, scheduledAt: req.body.scheduledAt, reason, actorPatientId: req.portalPatient._id, patientSelfService: true });
+  const [oldItem, newItem] = await Promise.all([original.populate({ path: "doctorId", select: "name" }), replacement.populate({ path: "doctorId", select: "name" })]);
+  res.json({ success: true, data: { oldAppointment: appointmentView(oldItem.toObject()), appointment: appointmentView(newItem.toObject()) } });
 });
 export const patientPortalCarePlans = asyncHandler(async (req, res) => {
   const location = await Location.findOne({

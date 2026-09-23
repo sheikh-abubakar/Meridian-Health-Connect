@@ -3,7 +3,7 @@ import { AuditLog } from "../models/AuditLog.js";
 import { Patient } from "../models/Patient.js";
 import { Reminder } from "../models/Reminder.js";
 import { Waitlist } from "../models/Waitlist.js";
-import { bookAppointment, releaseAppointmentSlotLocks } from "../services/appointmentBookingService.js";
+import { bookAppointment, releaseAppointmentSlotLocks, rescheduleAppointment } from "../services/appointmentBookingService.js";
 import { mockEligibilityCheck } from "../services/mockEligibility.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -96,6 +96,24 @@ export const cancelAppointment = asyncHandler(async (req, res) => {
   await AuditLog.create({ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "appointment_cancelled", targetType: "Appointment", targetId: appointment._id });
   const populated = await scopedPopulate(Appointment.findOne({ _id: appointment._id, tenantId: req.tenantId, locationId: req.locationId }), req).lean();
   res.json({ success: true, data: { appointment: populated, waitlistCount } });
+});
+
+export const rescheduleStaffAppointment = asyncHandler(async (req, res) => {
+  const reason = String(req.body.reason || "").trim();
+  if (reason.length < 3) throw new ApiError(400, "Reschedule reason must be at least 3 characters");
+  const { original, replacement } = await rescheduleAppointment({
+    tenantId: req.tenantId,
+    locationId: req.locationId,
+    appointmentId: req.params.id,
+    scheduledAt: req.body.scheduledAt,
+    reason,
+    actorUserId: req.user._id,
+  });
+  const [oldItem, newItem] = await Promise.all([
+    scopedPopulate(Appointment.findOne({ _id: original._id, tenantId: req.tenantId, locationId: req.locationId }), req).lean(),
+    scopedPopulate(Appointment.findOne({ _id: replacement._id, tenantId: req.tenantId, locationId: req.locationId }), req).lean(),
+  ]);
+  res.json({ success: true, data: { oldAppointment: oldItem, appointment: newItem } });
 });
 
 export const markNoShow = asyncHandler(async (req, res) => {

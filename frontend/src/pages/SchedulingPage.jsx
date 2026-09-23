@@ -3,6 +3,7 @@ import {
   AlertTriangle, 
   BellRing, 
   CalendarDays, 
+  CalendarClock,
   CheckCircle2, 
   Clock3, 
   Filter, 
@@ -42,6 +43,7 @@ const statusTabs = [
   { id: "checked_in", label: "Checked In", variant: "checked_in" },
   { id: "completed", label: "Completed", variant: "completed" },
   { id: "cancelled", label: "Cancelled", variant: "cancelled" },
+  { id: "rescheduled", label: "Rescheduled", variant: "rescheduled" },
   { id: "no_show", label: "No-Shows", variant: "no_show" },
 ];
 
@@ -73,6 +75,11 @@ export function SchedulingPage() {
 
   // Dialog & Booking state
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleItem, setRescheduleItem] = useState(null);
+  const [rescheduleAt, setRescheduleAt] = useState("");
+  const [rescheduleReason, setRescheduleReason] = useState("");
+  const [rescheduleAvailability, setRescheduleAvailability] = useState([]);
   const [waitOpen, setWaitOpen] = useState(false);
   const [step, setStep] = useState("search");
   const [booking, setBooking] = useState(blank);
@@ -243,6 +250,26 @@ export function SchedulingPage() {
     } catch (requestError) {
       setError(requestError.message);
     }
+  }
+
+  async function openReschedule(item) {
+    setError(""); setRescheduleItem(item); setRescheduleAt(""); setRescheduleReason(""); setRescheduleOpen(true);
+    try {
+      const data = await apiRequest(`${root}/availability/${item.doctorId?._id}`, { headers });
+      setRescheduleAvailability(data.availability?.slots || []);
+    } catch (requestError) { setError(requestError.message); }
+  }
+
+  async function reschedule(event) {
+    event.preventDefault();
+    if (!rescheduleItem) return;
+    if (!rescheduleAt || !isAvailableDateTime(rescheduleAt, rescheduleAvailability)) return setError("Choose a new time within the Doctor's published availability.");
+    if (rescheduleReason.trim().length < 3) return setError("Enter a short reason for this reschedule.");
+    try {
+      const data = await apiRequest(`${root}/appointments/${rescheduleItem._id}/reschedule`, { method: "PATCH", headers, body: JSON.stringify({ scheduledAt: rescheduleAt, reason: rescheduleReason }) });
+      setAppointments((current) => [...current.map((entry) => entry._id === data.oldAppointment._id ? data.oldAppointment : entry), data.appointment].sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt)));
+      setRescheduleOpen(false); setRescheduleItem(null); setNotice("Appointment rescheduled. The replacement visit now holds the selected slot.");
+    } catch (requestError) { setError(requestError.message); }
   }
 
   async function noShow(item) {
@@ -496,6 +523,21 @@ export function SchedulingPage() {
               )}
             </DialogContent>
           </Dialog>
+          <Dialog open={rescheduleOpen} onOpenChange={(open) => { setRescheduleOpen(open); if (!open) setRescheduleItem(null); }}>
+            <DialogContent className="max-w-md">
+              <form className="space-y-4" onSubmit={reschedule}>
+                <DialogHeader>
+                  <DialogTitle>Reschedule appointment</DialogTitle>
+                  <DialogDescription>Keep the same clinician and visit type; choose a new valid appointment time.</DialogDescription>
+                </DialogHeader>
+                {rescheduleItem && <div className="rounded-lg border bg-slate-50 p-3 text-sm"><p className="font-semibold">{rescheduleItem.patientId?.name}</p><p className="mt-1">{rescheduleItem.visitType} with {rescheduleItem.doctorId?.name}</p><p className="mt-1 text-slate-600">Current: {formatClinicDateTime(rescheduleItem.scheduledAt)}</p></div>}
+                <div className="space-y-1.5"><Label>New date & time</Label><Input type="datetime-local" min={`${dateKey()}T00:00`} value={rescheduleAt} onChange={(event) => setRescheduleAt(event.target.value)} required /><p className={`text-xs ${rescheduleAt ? (isAvailableDateTime(rescheduleAt, rescheduleAvailability) ? "text-emerald-700" : "text-red-700") : "text-slate-500"}`}>{rescheduleAt ? (isAvailableDateTime(rescheduleAt, rescheduleAvailability) ? "Time is within published Doctor availability." : "Choose a time within the Doctor's published availability.") : "Select a new appointment time."}</p></div>
+                <div className="space-y-1.5"><Label>Reason</Label><Input value={rescheduleReason} onChange={(event) => setRescheduleReason(event.target.value)} placeholder="e.g. Patient requested a new time" maxLength={1000} required /></div>
+                {error && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">{error}</p>}
+                <DialogFooter><Button className="w-full bg-teal-700 hover:bg-teal-800" disabled={!rescheduleAt || !isAvailableDateTime(rescheduleAt, rescheduleAvailability)}>Confirm reschedule</Button></DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -736,6 +778,14 @@ export function SchedulingPage() {
                           <Button
                             size="sm"
                             variant="outline"
+                            className="text-teal-800 hover:bg-teal-50 border-teal-200 h-8 text-xs"
+                            onClick={() => openReschedule(item)}
+                          >
+                            <CalendarClock className="mr-1 size-3.5" /> Reschedule
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             disabled={!passed}
                             title={passed ? "Mark patient as no-show" : `Available after ${formatClinicDateTime(item.scheduledAt)}`}
                             className="text-amber-700 hover:bg-amber-50 border-slate-200 h-8 text-xs disabled:opacity-50"
@@ -744,9 +794,9 @@ export function SchedulingPage() {
                             <UserX className="mr-1 size-3.5" /> No-show
                           </Button>
                         </>
-                      ) : item.status === "cancelled" ? (
+                      ) : ["cancelled", "rescheduled"].includes(item.status) ? (
                         <div className="text-right text-xs text-slate-500">
-                          <p className="font-medium text-red-700">Cancelled</p>
+                          <p className={`font-medium ${item.status === "rescheduled" ? "text-teal-700" : "text-red-700"}`}>{item.status === "rescheduled" ? "Rescheduled" : "Cancelled"}</p>
                           {item.cancellationReason && (
                             <p className="text-[11px] text-slate-500 max-w-[200px] truncate" title={item.cancellationReason}>
                               "{item.cancellationReason}"
