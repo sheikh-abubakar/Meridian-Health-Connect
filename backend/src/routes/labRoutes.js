@@ -1,0 +1,17 @@
+import { Router } from "express";
+import multer from "multer";
+import { bookLabOrder, createLabTest, listLabOrders, listLabTests, updateLabOrderStatus, updateLabTest, uploadLabOrderReport, viewLabOrderReport } from "../controllers/labController.js";
+import { authenticate } from "../middleware/authenticate.js";
+import { authorizeLocationAccess } from "../middleware/authorizeLocationAccess.js";
+import { authorizeRoles } from "../middleware/authorizeRoles.js";
+export const labRouter = Router({ mergeParams: true });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+labRouter.use(authenticate, authorizeLocationAccess);
+labRouter.get("/tests", authorizeRoles("admin", "doctor", "frontdesk"), listLabTests);
+labRouter.post("/tests", authorizeRoles("admin"), createLabTest);
+labRouter.patch("/tests/:id", authorizeRoles("admin"), updateLabTest);
+labRouter.get("/orders", authorizeRoles("frontdesk", "lab_attendant"), listLabOrders);
+labRouter.post("/orders/:id/book", authorizeRoles("frontdesk"), bookLabOrder);
+labRouter.patch("/orders/:id/status", authorizeRoles("lab_attendant"), updateLabOrderStatus);
+labRouter.post("/orders/:id/report", authorizeRoles("lab_attendant"), upload.single("file"), uploadLabOrderReport);
+labRouter.get("/orders/:id/report", authorizeRoles("frontdesk", "lab_attendant"), viewLabOrderReport);

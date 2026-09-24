@@ -14,10 +14,12 @@ import { RecallRequest } from "../models/RecallRequest.js";
 import { FormTemplate } from "../models/FormTemplate.js";
 import { AssignedForm } from "../models/AssignedForm.js";
 import { Referral } from "../models/Referral.js";
+import { LabTest } from "../models/LabTest.js";
+import { LabOrder } from "../models/LabOrder.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-const models = { User, Patient, Appointment, Encounter, EncounterTemplate, CarePlan, Task, RecallRequest, Availability, Resource, Waitlist, FormTemplate, AssignedForm, Referral };
+const models = { User, Patient, Appointment, Encounter, EncounterTemplate, CarePlan, Task, RecallRequest, Availability, Resource, Waitlist, FormTemplate, AssignedForm, Referral, LabTest, LabOrder };
 const scope = (req) => ({ tenantId: req.tenantId, locationId: req.locationId });
 
 function targetLabel(type, target) {
@@ -35,6 +37,8 @@ function targetLabel(type, target) {
   if (type === "FormTemplate") return target.name;
   if (type === "AssignedForm") return `${target.patientId?.name || "Patient"} — ${target.formTemplateId?.name || "consent form"}`;
   if (type === "Referral") return `${target.patientId?.name || "Patient"} — referral to ${target.targetDoctorId?.name || "doctor"}`;
+  if (type === "LabTest") return `${target.name} (${target.code})`;
+  if (type === "LabOrder") return `${target.patientId?.name || "Patient"} - ${target.testName}`;
   return type;
 }
 
@@ -47,7 +51,7 @@ async function resolveTargets(logs, req) {
     if (!Model) return;
     let query = Model.find({ _id: { $in: ids }, tenantId: req.tenantId });
     if (!["User", "Referral"].includes(type)) query = query.find({ locationId: req.locationId });
-    if (["Appointment", "Encounter", "CarePlan", "RecallRequest", "Waitlist", "AssignedForm", "Referral"].includes(type)) query = query.populate({ path: "patientId", select: "name", match: { tenantId: req.tenantId } });
+    if (["Appointment", "Encounter", "CarePlan", "RecallRequest", "Waitlist", "AssignedForm", "Referral", "LabOrder"].includes(type)) query = query.populate({ path: "patientId", select: "name", match: { tenantId: req.tenantId } });
     if (type === "AssignedForm") query = query.populate({ path: "formTemplateId", select: "name", match: scope(req) });
     if (type === "Referral") query = query.populate({ path: "targetDoctorId", select: "name", match: { tenantId: req.tenantId } });
     if (type === "Availability") query = query.populate({ path: "doctorId", select: "name", match: scope(req) });

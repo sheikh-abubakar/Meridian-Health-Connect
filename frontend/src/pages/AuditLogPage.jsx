@@ -166,6 +166,7 @@ actions.push(
 actions.push("consent_form_template_created", "consent_form_template_updated", "consent_form_assigned");
 actions.push("consent_form_signed");
 actions.push("referral_created", "referral_status_updated", "referral_closed_loop");
+actions.push("lab_test_created", "lab_test_updated", "lab_tests_requested", "lab_collection_booked", "patient_lab_collection_booked", "lab_arrived", "lab_sample_collected", "lab_no_show", "lab_report_uploaded", "lab_report_viewed", "patient_lab_report_viewed");
 Object.assign(actionLabels, {
   encounter_template_created: "Clinical template created",
   encounter_template_updated: "Clinical template updated",
@@ -204,6 +205,17 @@ Object.assign(actionLabels, {
   referral_created: "Referral created",
   referral_status_updated: "Referral status updated",
   referral_closed_loop: "Referral closed-loop response recorded",
+  lab_test_created: "Lab test added to catalogue",
+  lab_test_updated: "Lab test catalogue updated",
+  lab_tests_requested: "Lab tests requested during encounter",
+  lab_collection_booked: "Lab collection booked",
+  patient_lab_collection_booked: "Patient booked lab collection online",
+  lab_arrived: "Patient arrived for lab collection",
+  lab_sample_collected: "Lab sample collected",
+  lab_no_show: "Lab collection marked no-show",
+  lab_report_uploaded: "Lab report uploaded",
+  lab_report_viewed: "Lab report viewed by staff",
+  patient_lab_report_viewed: "Patient viewed lab report",
 });
 const timestamp = (value) =>
   new Intl.DateTimeFormat("en-PK", {

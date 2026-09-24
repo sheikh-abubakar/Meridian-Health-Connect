@@ -42,6 +42,7 @@ const roleLabels = {
   frontdesk: "Front-desk Staff",
   doctor: "Doctor",
   care_coordinator: "Care Coordinator",
+  lab_attendant: "Lab Attendant",
 };
 
 function StaffNotificationBell({ root, accessToken, notifications, setNotifications, open, setOpen, panelRef, navigate }) {
@@ -102,6 +103,7 @@ export function AppLayout() {
             `${root}/tasks?assignedToUserId=me`,
             `${root}/careplans?owningCareTeamMemberId=me`,
           ],
+          lab_attendant: [`${root}/lab/orders`],
         };
         for (const path of paths[session.user.role] || [])
           prefetchApi(path, { headers });
@@ -256,6 +258,7 @@ export function AppLayout() {
       ScrollText,
       session.user.role === "admin",
     ],
+    ["Lab Setup", "Management", `${root}/lab-setup`, Boxes, session.user.role === "admin"],
     [
       "Patients",
       "Operations",
@@ -277,6 +280,7 @@ export function AppLayout() {
       PhoneCall,
       session.user.role === "frontdesk",
     ],
+    ["Lab Desk", "Operations", `${root}/lab-desk`, Boxes, session.user.role === "frontdesk"],
     [
       "My Availability",
       "Clinical",
@@ -326,6 +330,7 @@ export function AppLayout() {
       Activity,
       session.user.role === "care_coordinator",
     ],
+    ["My Lab Worklist", "Laboratory", `${root}/lab-worklist`, Activity, session.user.role === "lab_attendant"],
   ].filter((item) => item[4]);
   const groups = [...new Set(navigation.map((item) => item[1]))];
   const sidebar = (

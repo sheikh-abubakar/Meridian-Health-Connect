@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/context/auth-context";
 import { dateKey, formatClinicDateTime } from "@/lib/schedule";
 import { MyTasksPage } from "@/pages/MyTasksPage";
+import { LabWorklistPage } from "@/pages/LabWorklistPage";
 import { useRealtimeRevision } from "@/realtime/useRealtimeRevision";
 
 const tones = { teal: "bg-teal-50 text-teal-700", blue: "bg-blue-50 text-blue-700", violet: "bg-violet-50 text-violet-700", emerald: "bg-emerald-50 text-emerald-700", amber: "bg-amber-50 text-amber-700" };
@@ -77,5 +78,6 @@ export function DashboardPage() {
   const { session } = useAuth();
   if (session.user.role === "admin") return <AdminAnalyticsDashboard />;
   if (session.user.role === "care_coordinator") return <MyTasksPage />;
+  if (session.user.role === "lab_attendant") return <LabWorklistPage />;
   return <RoleDashboard role={session.user.role} />;
 }

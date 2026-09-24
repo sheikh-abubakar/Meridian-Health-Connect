@@ -5,7 +5,7 @@ import { hashPassword } from "../services/passwordService.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-const creatableRoles = ["doctor", "frontdesk", "care_coordinator"];
+const creatableRoles = ["doctor", "frontdesk", "care_coordinator", "lab_attendant"];
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function serializeUser(user) {
@@ -43,7 +43,7 @@ export const createUser = asyncHandler(async (req, res) => {
   if (!emailPattern.test(email)) throw new ApiError(400, "Enter a valid email address");
   if (password.length < 8) throw new ApiError(400, "Password must be at least 8 characters");
   if (!creatableRoles.includes(role)) {
-    throw new ApiError(400, "Role must be doctor, frontdesk, or care_coordinator");
+    throw new ApiError(400, "Role must be doctor, frontdesk, care_coordinator, or lab_attendant");
   }
   if (role === "doctor" && !specialtyIds.length) throw new ApiError(400, "Choose at least one specialty for a Doctor");
   if (specialtyIds.length) {

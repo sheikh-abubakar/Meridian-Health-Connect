@@ -23,7 +23,7 @@ export const listDoctors = asyncHandler(async (req, res) => {
 });
 
 export const listStaff = asyncHandler(async (req, res) => {
-  const staff = await User.find({ tenantId: req.tenantId, locationId: req.locationId, role: { $in: ["doctor", "frontdesk", "care_coordinator"] }, isActive: { $ne: false } })
+  const staff = await User.find({ tenantId: req.tenantId, locationId: req.locationId, role: { $in: ["doctor", "frontdesk", "care_coordinator", "lab_attendant"] }, isActive: { $ne: false } })
     .select("name email role").sort({ role: 1, name: 1 }).lean();
   res.json({ success: true, data: { staff: staff.map((member) => ({ id: member._id, name: member.name, email: member.email, role: member.role })) } });
 });

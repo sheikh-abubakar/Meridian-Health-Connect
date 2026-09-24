@@ -30,6 +30,7 @@ import { formTemplateRouter } from "./routes/formTemplateRoutes.js";
 import { referralRouter } from "./routes/referralRoutes.js";
 import { notificationRouter } from "./routes/notificationRoutes.js";
 import { monitoringRouter } from "./routes/monitoringRoutes.js";
+import { labRouter } from "./routes/labRoutes.js";
 
 export const app = express();
 
@@ -85,6 +86,7 @@ app.use("/api/:tenantSlug/:locationSlug/reminders", resolveTenant, resolveLocati
 app.use("/api/:tenantSlug/:locationSlug/referrals", resolveTenant, resolveLocation, referralRouter);
 app.use("/api/:tenantSlug/:locationSlug/notifications", resolveTenant, resolveLocation, notificationRouter);
 app.use("/api/:tenantSlug/:locationSlug/monitoring", resolveTenant, resolveLocation, monitoringRouter);
+app.use("/api/:tenantSlug/:locationSlug/lab", resolveTenant, resolveLocation, labRouter);
 app.use("/api/:tenantSlug/:locationSlug", resolveTenant, resolveLocation, directoryRouter);
 
 app.use(notFoundHandler);

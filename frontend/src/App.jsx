@@ -29,6 +29,9 @@ import { LandingPage } from "@/pages/LandingPage";
 import { ConsentFormsPage } from "@/pages/ConsentFormsPage";
 import { MyReferralsPage } from "@/pages/MyReferralsPage";
 import { MonitoringAdherencePage } from "@/pages/MonitoringAdherencePage";
+import { LabSetupPage } from "@/pages/LabSetupPage";
+import { LabDeskPage } from "@/pages/LabDeskPage";
+import { LabWorklistPage } from "@/pages/LabWorklistPage";
 
 export default function App() {
   return <Routes>
@@ -47,12 +50,14 @@ export default function App() {
         <Route path="resources" element={<RequireRole roles={["admin"]}><ResourcesPage /></RequireRole>} />
         <Route path="clinical-templates" element={<RequireRole roles={["admin"]}><ClinicalTemplatesPage /></RequireRole>} />
         <Route path="consent-forms" element={<RequireRole roles={["admin"]}><ConsentFormsPage /></RequireRole>} />
+        <Route path="lab-setup" element={<RequireRole roles={["admin"]}><LabSetupPage /></RequireRole>} />
         <Route path="audit-log" element={<RequireRole roles={["admin"]}><AuditLogPage /></RequireRole>} />
         <Route path="overdue-tasks" element={<RequireRole roles={["admin"]}><OverdueTasksPage /></RequireRole>} />
         <Route path="patients" element={<RequireRole roles={["frontdesk", "admin"]}><PatientsPage /></RequireRole>} />
         <Route path="patients/:patientId" element={<RequireRole roles={["frontdesk", "admin", "doctor", "care_coordinator"]}><PatientProfilePage /></RequireRole>} />
         <Route path="scheduling" element={<RequireRole roles={["frontdesk"]}><SchedulingPage /></RequireRole>} />
         <Route path="recall-requests" element={<RequireRole roles={["frontdesk"]}><RecallRequestsPage /></RequireRole>} />
+        <Route path="lab-desk" element={<RequireRole roles={["frontdesk"]}><LabDeskPage /></RequireRole>} />
         <Route path="availability" element={<RequireRole roles={["doctor"]}><AvailabilityPage /></RequireRole>} />
         <Route path="queue" element={<RequireRole roles={["doctor"]}><QueuePage /></RequireRole>} />
         <Route path="my-patients" element={<RequireRole roles={["doctor"]}><MyPatientsPage /></RequireRole>} />
@@ -60,6 +65,7 @@ export default function App() {
         <Route path="my-care-plans" element={<RequireRole roles={["doctor", "care_coordinator"]}><MyCarePlansPage /></RequireRole>} />
         <Route path="tasks" element={<RequireRole roles={["care_coordinator"]}><MyTasksPage /></RequireRole>} />
         <Route path="monitoring-adherence" element={<RequireRole roles={["care_coordinator"]}><MonitoringAdherencePage /></RequireRole>} />
+        <Route path="lab-worklist" element={<RequireRole roles={["lab_attendant"]}><LabWorklistPage /></RequireRole>} />
         <Route path="encounters/:encounterId" element={<RequireRole roles={["doctor"]}><EncounterPage /></RequireRole>} />
       </Route>
     </Route>

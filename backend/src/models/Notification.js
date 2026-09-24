@@ -5,7 +5,7 @@ const notificationSchema = new mongoose.Schema({
   locationId: { type: mongoose.Schema.Types.ObjectId, ref: "Location", required: true, index: true },
   recipientUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
   recipientPatientId: { type: mongoose.Schema.Types.ObjectId, ref: "Patient", default: null, index: true },
-  type: { type: String, required: true, enum: ["appointment_booked", "patient_appointment_booked", "patient_appointment_cancelled", "patient_appointment_rescheduled", "patient_prescription_issued", "referral_received", "referral_booking_needed", "referral_scheduled", "referral_completed", "monitoring_threshold_alert", "monitoring_review_reminder", "monitoring_adherence_reminder"] },
+  type: { type: String, required: true, enum: ["appointment_booked", "patient_appointment_booked", "patient_appointment_cancelled", "patient_appointment_rescheduled", "patient_prescription_issued", "patient_lab_report_available", "lab_collection_booked", "referral_received", "referral_booking_needed", "referral_scheduled", "referral_completed", "monitoring_threshold_alert", "monitoring_review_reminder", "monitoring_adherence_reminder"] },
   title: { type: String, required: true, trim: true, maxlength: 160 },
   body: { type: String, required: true, trim: true, maxlength: 1000 },
   targetPath: { type: String, required: true, trim: true, maxlength: 500 },

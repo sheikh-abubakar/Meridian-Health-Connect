@@ -10,6 +10,8 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { generateClinicalSummary, GROQ_SUMMARY_MODEL } from "../services/groqSummaryService.js";
 import { assertAllowedAttachment, deleteClinicalAttachment, signedClinicalAttachmentUrl, uploadClinicalAttachment } from "../services/s3AttachmentService.js";
 import { notifyPatient } from "../services/staffNotificationService.js";
+import { LabTest } from "../models/LabTest.js";
+import { LabOrder } from "../models/LabOrder.js";
 
 function scopedEncounterQuery(query, req) {
   const match = { tenantId: req.tenantId, locationId: req.locationId };
@@ -174,6 +176,14 @@ export const updateDraft = asyncHandler(async (req, res) => {
   }
   if (Object.hasOwn(req.body, "templateAnswers")) encounter.templateAnswers = cleanTemplateAnswers(encounter, req.body.templateAnswers);
   if (Object.hasOwn(req.body, "prescriptionItems")) encounter.prescription.items = cleanPrescription(req.body.prescriptionItems);
+  if (Object.hasOwn(req.body, "labTestIds")) {
+    const ids = [...new Set(Array.isArray(req.body.labTestIds) ? req.body.labTestIds.map(String) : [])];
+    if (ids.length) {
+      const count = await LabTest.countDocuments({ tenantId: req.tenantId, locationId: req.locationId, _id: { $in: ids }, isActive: true });
+      if (count !== ids.length) throw new ApiError(400, "Every selected lab test must be active in this location");
+    }
+    encounter.labTestIds = ids;
+  }
   await encounter.save();
 
   const populated = await scopedEncounterQuery(Encounter.findOne(encounterFilter(req)), req).lean();
@@ -238,6 +248,9 @@ export const finalizeEncounter = asyncHandler(async (req, res) => {
       appointment.status = "completed";
       await encounter.save({ session });
       await appointment.save({ session });
+      const labTests = encounter.labTestIds?.length ? await LabTest.find({ tenantId: req.tenantId, locationId: req.locationId, _id: { $in: encounter.labTestIds }, isActive: true }).session(session).lean() : [];
+      if (labTests.length !== (encounter.labTestIds || []).length) throw new ApiError(409, "A selected lab test is no longer active");
+      if (labTests.length) await LabOrder.insertMany(labTests.map((test) => ({ tenantId: req.tenantId, locationId: req.locationId, patientId: encounter.patientId, encounterId: encounter._id, requestedByDoctorId: req.user._id, labTestId: test._id, testName: test.name, testCode: test.code, preparation: test.preparation })), { session, ordered: true });
       await AuditLog.create([{
         tenantId: req.tenantId,
         locationId: req.locationId,
@@ -255,7 +268,7 @@ export const finalizeEncounter = asyncHandler(async (req, res) => {
       }, ...missing.map((field) => ({
         tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id,
         action: "encounter_template_required_override", targetType: "Encounter", targetId: encounter._id,
-      })), ...(encounter.prescription?.items?.length ? [{ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "prescription_issued", targetType: "Encounter", targetId: encounter._id }] : [])], { session, ordered: true });
+      })), ...(encounter.prescription?.items?.length ? [{ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "prescription_issued", targetType: "Encounter", targetId: encounter._id }] : []), ...(labTests.length ? [{ tenantId: req.tenantId, locationId: req.locationId, actorUserId: req.user._id, action: "lab_tests_requested", targetType: "Encounter", targetId: encounter._id }] : [])], { session, ordered: true });
     });
   } finally {
     await session.endSession();

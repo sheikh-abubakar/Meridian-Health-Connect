@@ -24,6 +24,7 @@ import {
 } from "../controllers/messageController.js";
 import { authenticatePatientPortal } from "../middleware/authenticatePatientPortal.js";
 import { patientPortalAddMonitoringReading, patientPortalMonitoring } from "../controllers/monitoringController.js";
+import { patientPortalBookLabOrder, patientPortalLabOrders, patientPortalViewLabReport } from "../controllers/labController.js";
 
 export const patientPortalRouter = Router();
 patientPortalRouter.get("/activate/:token", inspectActivation);
@@ -76,3 +77,6 @@ patientPortalRouter.get("/forms", authenticatePatientPortal, patientPortalForms)
 patientPortalRouter.post("/forms/:assignedFormId/submit", authenticatePatientPortal, submitPatientPortalForm);
 patientPortalRouter.get("/monitoring", authenticatePatientPortal, patientPortalMonitoring);
 patientPortalRouter.post("/monitoring/:enrollmentId/readings", authenticatePatientPortal, patientPortalAddMonitoringReading);
+patientPortalRouter.get("/lab-orders", authenticatePatientPortal, patientPortalLabOrders);
+patientPortalRouter.post("/lab-orders/:id/book", authenticatePatientPortal, patientPortalBookLabOrder);
+patientPortalRouter.get("/lab-orders/:id/report", authenticatePatientPortal, patientPortalViewLabReport);

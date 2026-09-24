@@ -56,6 +56,7 @@ const encounterSchema = new mongoose.Schema(
       items: { type: [prescriptionItemSchema], default: [] },
       issuedAt: { type: Date, default: null },
     },
+    labTestIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "LabTest" }],
     aiSummary: {
       text: { type: String, trim: true, maxlength: 10000 },
       generatedAt: { type: Date },
@@ -76,7 +77,7 @@ encounterSchema.index(
 encounterSchema.index({ tenantId: 1, locationId: 1, patientId: 1, createdAt: -1 });
 
 encounterSchema.pre("save", async function preventFinalizedClinicalMutation() {
-  if (this.isNew || (!this.isModified("notes") && !this.isModified("aiSummary") && !this.isModified("templateAnswers") && !this.isModified("templateSnapshot") && !this.isModified("templateRequiredOverrides") && !this.isModified("attachments") && !this.isModified("prescription"))) return;
+  if (this.isNew || (!this.isModified("notes") && !this.isModified("aiSummary") && !this.isModified("templateAnswers") && !this.isModified("templateSnapshot") && !this.isModified("templateRequiredOverrides") && !this.isModified("attachments") && !this.isModified("prescription") && !this.isModified("labTestIds"))) return;
   const persisted = await this.constructor.findOne({
     _id: this._id,
     tenantId: this.tenantId,

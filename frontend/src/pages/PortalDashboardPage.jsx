@@ -25,6 +25,7 @@ import { PatientConsentForms } from "@/components/PatientConsentForms";
 import { PortalMonitoringSection } from "@/components/PortalMonitoringSection";
 import { PortalAppointmentsSection } from "@/components/PortalAppointmentsSection";
 import { PortalPrescriptionsSection } from "@/components/PortalPrescriptionsSection";
+import { PortalLabTests } from "@/components/PortalLabTests";
 const stamp = (value) =>
   new Intl.DateTimeFormat("en-PK", {
     weekday: "short",
@@ -178,12 +179,15 @@ export function PortalDashboardPage() {
     "monitoringreading:created",
     "monitoringreading:updated",
     "notification:created",
+    "laborder:created",
+    "laborder:updated",
   ]);
   const [data, setData] = useState(null),
     [appointments, setAppointments] = useState({ upcoming: [], past: [] }),
     [carePlans, setCarePlans] = useState({ enabled: false, carePlans: [] }),
     [monitoring, setMonitoring] = useState([]),
     [prescriptions, setPrescriptions] = useState([]),
+    [labOrders, setLabOrders] = useState([]),
     [forms, setForms] = useState([]),
     [chat, setChat] = useState({ messages: [], expectedResponseHours: 24 }),
     [view, setView] = useState("home"),
@@ -219,8 +223,9 @@ export function PortalDashboardPage() {
       apiRequest("/patient-portal/forms", { headers }),
       apiRequest("/patient-portal/monitoring", { headers }),
       apiRequest("/patient-portal/prescriptions", { headers }),
+      apiRequest("/patient-portal/lab-orders", { headers }),
       apiRequest("/patient-portal/notifications", { headers }),
-    ]).then(([profile, visits, messages, plans, assignedForms, monitoringData, prescriptionData, portalNotifications]) => {
+    ]).then(([profile, visits, messages, plans, assignedForms, monitoringData, prescriptionData, labData, portalNotifications]) => {
       setData(profile);
       setAppointments(visits);
       setChat(messages);
@@ -228,6 +233,7 @@ export function PortalDashboardPage() {
       setForms(assignedForms.forms || []);
       setMonitoring(monitoringData.enrollments || []);
       setPrescriptions(prescriptionData.prescriptions || []);
+      setLabOrders(labData.orders || []);
       setNotifications(portalNotifications.notifications || []);
     });
   useEffect(() => {
@@ -376,6 +382,7 @@ export function PortalDashboardPage() {
             ["appointments", CalendarDays, "My appointments"],
             ["book", CalendarPlus, "Book appointment"],
             ["prescriptions", ClipboardList, "My prescriptions"],
+            ["tests", Activity, "My tests"],
             ["chat", MessageCircle, "Messages"],
             ["forms", ClipboardSignature, "Forms"],
             ...(monitoring.length ? [["monitoring", Activity, "My Monitoring"]] : []),
@@ -461,7 +468,7 @@ export function PortalDashboardPage() {
                           );
                           setNotificationsOpen(false);
                           if (item.type !== "patient_message") apiRequest(`/patient-portal/notifications/${item.id}/read`, { method: "PATCH", headers }).catch(() => {});
-                          setView(item.type === "patient_appointment_booked" ? "appointments" : item.type === "patient_prescription_issued" ? "prescriptions" : "chat");
+                          setView(item.type === "patient_appointment_booked" ? "appointments" : item.type === "patient_prescription_issued" ? "prescriptions" : item.type === "patient_lab_report_available" ? "tests" : "chat");
                         }}
                       >
                         <p className="text-sm font-semibold">
@@ -509,6 +516,8 @@ export function PortalDashboardPage() {
             </>
           ) : view === "prescriptions" ? (
             <><button onClick={() => setView("home")} className="flex min-h-11 items-center gap-1 font-semibold text-teal-800"><ChevronLeft />Back to portal</button><div className="mt-4"><PortalPrescriptionsSection prescriptions={prescriptions} accessToken={session.accessToken} /></div></>
+          ) : view === "tests" ? (
+            <><button onClick={() => setView("home")} className="flex min-h-11 items-center gap-1 font-semibold text-teal-800"><ChevronLeft />Back to portal</button><div className="mt-4"><PortalLabTests orders={labOrders} headers={headers} onBooked={load} /></div></>
           ) : view === "forms" ? (
             <PatientConsentForms
               forms={forms}
