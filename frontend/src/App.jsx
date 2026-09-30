@@ -63,7 +63,7 @@ export default function App() {
         <Route path="my-patients" element={<RequireRole roles={["doctor"]}><MyPatientsPage /></RequireRole>} />
         <Route path="my-referrals" element={<RequireRole roles={["doctor"]}><MyReferralsPage /></RequireRole>} />
         <Route path="my-care-plans" element={<RequireRole roles={["doctor", "care_coordinator"]}><MyCarePlansPage /></RequireRole>} />
-        <Route path="tasks" element={<RequireRole roles={["care_coordinator"]}><MyTasksPage /></RequireRole>} />
+        <Route path="tasks" element={<RequireRole roles={["admin", "care_coordinator"]}><MyTasksPage /></RequireRole>} />
         <Route path="monitoring-adherence" element={<RequireRole roles={["care_coordinator"]}><MonitoringAdherencePage /></RequireRole>} />
         <Route path="lab-worklist" element={<RequireRole roles={["lab_attendant"]}><LabWorklistPage /></RequireRole>} />
         <Route path="encounters/:encounterId" element={<RequireRole roles={["doctor"]}><EncounterPage /></RequireRole>} />
