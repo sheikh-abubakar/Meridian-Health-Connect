@@ -32,6 +32,8 @@ import { MonitoringAdherencePage } from "@/pages/MonitoringAdherencePage";
 import { LabSetupPage } from "@/pages/LabSetupPage";
 import { LabDeskPage } from "@/pages/LabDeskPage";
 import { LabWorklistPage } from "@/pages/LabWorklistPage";
+import { ShiftManagementPage } from "@/pages/ShiftManagementPage";
+import { FrontdeskTasksPage } from "@/pages/FrontdeskTasksPage";
 
 export default function App() {
   return <Routes>
@@ -47,6 +49,7 @@ export default function App() {
       <Route path=":locationSlug" element={<AppLayout />}>
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="staff" element={<RequireRole roles={["admin"]}><StaffPage /></RequireRole>} />
+        <Route path="shifts" element={<RequireRole roles={["admin"]}><ShiftManagementPage /></RequireRole>} />
         <Route path="resources" element={<RequireRole roles={["admin"]}><ResourcesPage /></RequireRole>} />
         <Route path="clinical-templates" element={<RequireRole roles={["admin"]}><ClinicalTemplatesPage /></RequireRole>} />
         <Route path="consent-forms" element={<RequireRole roles={["admin"]}><ConsentFormsPage /></RequireRole>} />
@@ -56,6 +59,7 @@ export default function App() {
         <Route path="patients" element={<RequireRole roles={["frontdesk", "admin"]}><PatientsPage /></RequireRole>} />
         <Route path="patients/:patientId" element={<RequireRole roles={["frontdesk", "admin", "doctor", "care_coordinator"]}><PatientProfilePage /></RequireRole>} />
         <Route path="scheduling" element={<RequireRole roles={["frontdesk"]}><SchedulingPage /></RequireRole>} />
+        <Route path="frontdesk-tasks" element={<RequireRole roles={["frontdesk"]}><FrontdeskTasksPage /></RequireRole>} />
         <Route path="recall-requests" element={<RequireRole roles={["frontdesk"]}><RecallRequestsPage /></RequireRole>} />
         <Route path="lab-desk" element={<RequireRole roles={["frontdesk"]}><LabDeskPage /></RequireRole>} />
         <Route path="availability" element={<RequireRole roles={["doctor"]}><AvailabilityPage /></RequireRole>} />

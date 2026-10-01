@@ -20,6 +20,9 @@ import { User } from "../src/models/User.js";
 import { Waitlist } from "../src/models/Waitlist.js";
 import { Specialty } from "../src/models/Specialty.js";
 import { VisitType } from "../src/models/VisitType.js";
+import { AttendanceSession } from "../src/models/AttendanceSession.js";
+import { ShiftSchedule } from "../src/models/ShiftSchedule.js";
+import { migrateLegacyFrontdeskTasks } from "../src/services/frontdeskTaskMigration.js";
 
 const testDbName = `meridian_test_${process.pid}_${Date.now().toString(36)}`;
 let server;
@@ -285,4 +288,49 @@ test("specialty-aware visit types filter providers and enforce duration and requ
   assert.equal(rejected.status, 400); assert.match(rejected.body.error.message, /full 30-minute/i);
   const booked = await request("/city-care/gulberg/appointments", { user: f.cityFrontdesk, tenant: f.city, method: "POST", body: { patientId: f.gulbergPatient._id, doctorId: f.cityDoctor._id, visitTypeId: visitType._id, scheduledAt: "2031-01-03T09:15", resourceId: room._id } });
   assert.equal(booked.status, 201); assert.equal(booked.body.data.appointment.durationMinutes, 30); assert.equal(booked.body.data.appointment.visitType, "Cardiology follow-up");
+});
+
+test("Front-desk shifts, shared queue, and tenant isolation", async () => {
+  const f = fixtures;
+  await AttendanceSession.init();
+  const colleague = await staff(f.city._id, f.gulberg._id, "Evening Frontdesk", "frontdesk");
+  const dayOfWeek = new Date(Date.now() + 5 * 3600000).getUTCDay();
+  const shift = await request("/city-care/gulberg/shifts/schedule", { user: f.cityAdmin, tenant: f.city, method: "PUT", body: { staffId: f.cityFrontdesk._id, kind: "weekly", dayOfWeek, startTime: "09:00", endTime: "14:00" } });
+  assert.equal(shift.status, 200);
+  assert.equal(await ShiftSchedule.countDocuments({ tenantId: f.city._id, locationId: f.gulberg._id }), 1);
+  assert.equal((await request("/city-care/dha/shifts/schedule", { user: f.dhaFrontdesk, tenant: f.city })).body.data.rules.length, 0);
+  assert.equal((await request("/city-care/gulberg/shifts/report", { user: f.cityFrontdesk, tenant: f.city })).status, 403);
+  assert.equal((await request("/green-valley/main/shifts/coverage", { user: f.cityAdmin, tenant: f.city })).status, 403);
+
+  const firstClock = await request("/city-care/gulberg/shifts/clock-in", { user: f.cityFrontdesk, tenant: f.city, method: "POST" });
+  assert.equal(firstClock.status, 201);
+  assert.equal((await request("/city-care/gulberg/shifts/clock-in", { user: f.cityFrontdesk, tenant: f.city, method: "POST" })).status, 409);
+  assert.equal((await request("/city-care/gulberg/shifts/clock-in", { user: colleague, tenant: f.city, method: "POST" })).status, 201);
+
+  const plan = await CarePlan.create({ tenantId: f.city._id, locationId: f.gulberg._id, patientId: f.gulbergPatient._id, encounterId: new mongoose.Types.ObjectId(), createdByDoctorId: f.cityDoctor._id, goal: "Follow up", targetMeasure: "Phone call", reviewCadence: "Weekly", owningCareTeamMemberId: f.cityDoctor._id, history: [{ change: "Created", actor: f.cityDoctor._id, reason: "Test" }] });
+  const task = await request("/city-care/gulberg/tasks", { user: f.cityDoctor, tenant: f.city, method: "POST", body: { carePlanId: plan._id, description: "Call patient about visit", dueDate: "2031-01-01", assignmentScope: "frontdesk_shared", type: "general" } });
+  assert.equal(task.status, 201);
+  const taskId = task.body.data.task._id;
+  assert.equal((await request("/city-care/gulberg/tasks", { user: colleague, tenant: f.city })).body.data.tasks.some((item) => String(item._id) === String(taskId)), true);
+  assert.equal((await request("/city-care/dha/tasks", { user: f.dhaFrontdesk, tenant: f.city })).body.data.tasks.some((item) => String(item._id) === String(taskId)), false);
+  const [one, two] = await Promise.all([f.cityFrontdesk, colleague].map((user) => request(`/city-care/gulberg/tasks/${taskId}/complete`, { user, tenant: f.city, method: "PATCH", body: { outcomeNote: "Patient called" } })));
+  assert.equal([one.status, two.status].filter((status) => status === 200).length, 1);
+  assert.equal(await AuditLog.countDocuments({ action: "task_completed", targetId: taskId }), 1);
+  assert.ok((await Task.findById(taskId).lean()).completedByUserId);
+  assert.equal((await request("/city-care/gulberg/shifts/clock-out", { user: f.cityFrontdesk, tenant: f.city, method: "POST" })).status, 200);
+  assert.equal((await request("/city-care/gulberg/shifts/clock-out", { user: colleague, tenant: f.city, method: "POST" })).status, 200);
+  assert.equal(await AttendanceSession.countDocuments({ tenantId: f.city._id, locationId: f.gulberg._id, clockOutAt: null }), 0);
+});
+
+test("legacy open Front-desk general tasks migrate once without changing completed history", async () => {
+  const f = fixtures;
+  const plan = await CarePlan.create({ tenantId: f.city._id, locationId: f.gulberg._id, patientId: f.gulbergPatient._id, encounterId: new mongoose.Types.ObjectId(), createdByDoctorId: f.cityDoctor._id, goal: "Legacy follow-up", targetMeasure: "Phone call", reviewCadence: "Weekly", owningCareTeamMemberId: f.cityDoctor._id, history: [{ change: "Created", actor: f.cityDoctor._id, reason: "Test" }] });
+  const legacy = await Task.create({ tenantId: f.city._id, locationId: f.gulberg._id, carePlanId: plan._id, description: "Legacy Front-desk task", assignedToUserId: f.cityFrontdesk._id, assignedByUserId: f.cityDoctor._id, dueDate: new Date("2031-01-01"), type: "general" });
+  await Task.collection.updateOne({ _id: legacy._id }, { $unset: { assignmentScope: "" } });
+  const completed = await Task.create({ tenantId: f.city._id, locationId: f.gulberg._id, carePlanId: plan._id, description: "Already done", assignedToUserId: f.cityFrontdesk._id, assignedByUserId: f.cityDoctor._id, dueDate: new Date("2031-01-01"), type: "general", status: "completed", completedAt: new Date() });
+  await Task.collection.updateOne({ _id: completed._id }, { $unset: { assignmentScope: "" } });
+  await migrateLegacyFrontdeskTasks(); await migrateLegacyFrontdeskTasks();
+  assert.equal((await Task.findById(legacy._id).lean()).assignmentScope, "frontdesk_shared");
+  assert.equal((await Task.collection.findOne({ _id: completed._id })).assignmentScope, undefined);
+  assert.equal(await AuditLog.countDocuments({ action: "task_migrated_to_frontdesk_queue", targetId: legacy._id }), 1);
 });

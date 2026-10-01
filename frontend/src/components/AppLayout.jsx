@@ -230,6 +230,7 @@ export function AppLayout() {
       Users,
       session.user.role === "admin",
     ],
+    ["Shifts & Attendance", "Management", `${root}/shifts`, ClipboardClock, session.user.role === "admin"],
     [
       "Scheduling Setup",
       "Management",
@@ -281,6 +282,7 @@ export function AppLayout() {
       session.user.role === "frontdesk",
     ],
     ["Lab Desk", "Operations", `${root}/lab-desk`, Boxes, session.user.role === "frontdesk"],
+    ["Shared Tasks", "Operations", `${root}/frontdesk-tasks`, ClipboardCheck, session.user.role === "frontdesk"],
     [
       "My Availability",
       "Clinical",

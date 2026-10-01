@@ -35,7 +35,7 @@ export async function processTaskEscalations(io) {
         const claimed = await Task.findOneAndUpdate({ _id: task._id, tenantId: location.tenantId, locationId: location._id, status: "open", escalationsSent: { $ne: tier } }, { $addToSet: { escalationsSent: tier } }, { new: true }).lean();
         if (!claimed) continue;
         await AuditLog.create({ tenantId: location.tenantId, locationId: location._id, actorUserId: task.assignedByUserId, action: `task_escalated_${tier}`, targetType: "Task", targetId: task._id });
-        const payload = { taskId: String(task._id), tier: level, description: task.description, daysOverdue, assigneeId: String(task.assignedToUserId), creatorId: String(task.assignedByUserId), occurredAt: now.toISOString() };
+        const payload = { taskId: String(task._id), tier: level, description: task.description, daysOverdue, assigneeId: task.assignedToUserId ? String(task.assignedToUserId) : null, creatorId: String(task.assignedByUserId), occurredAt: now.toISOString() };
         if (tier === "tier2") io.to(userRoom(location.tenantId, task.assignedByUserId)).emit("task:escalated", payload);
         if (tier === "tier3") io.to(locationRoom(location.tenantId, location._id)).emit("task:escalated", payload);
       }

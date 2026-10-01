@@ -7,6 +7,8 @@ const collections = {
   encounters: { insert: "encounter:created", update: "encounter:updated", replace: "encounter:updated" },
   careplans: { insert: "careplan:created", update: "careplan:updated", replace: "careplan:updated" },
   tasks: { insert: "task:created", update: "task:updated", replace: "task:updated" },
+  shiftschedules: { insert: "shift:scheduled", update: "shift:scheduled", replace: "shift:scheduled", delete: "shift:scheduled" },
+  attendancesessions: { insert: "attendance:updated", update: "attendance:updated", replace: "attendance:updated" },
   availabilities: { insert: "availability:updated", update: "availability:updated", replace: "availability:updated" },
   users: { insert: "staff:created", update: "staff:updated", replace: "staff:updated" },
   auditlogs: { insert: "auditlog:created" },

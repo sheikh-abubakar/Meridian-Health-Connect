@@ -6,25 +6,30 @@ import { RecallRequest } from "../models/RecallRequest.js";
 import { Task } from "../models/Task.js";
 import { User } from "../models/User.js";
 import { Location } from "../models/Location.js";
+import { AttendanceSession } from "../models/AttendanceSession.js";
 import { decorateTask, taskEscalation } from "../services/taskEscalationService.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const scope = (req) => ({ tenantId: req.tenantId, locationId: req.locationId });
-const populateTask = (query, req) => query.populate({ path: "assignedToUserId", select: "name role email", match: scope(req) }).populate({ path: "assignedByUserId", select: "name role", match: scope(req) }).populate({ path: "carePlanId", select: "goal patientId", match: scope(req), populate: { path: "patientId", select: "name contact", match: scope(req) } });
+const populateTask = (query, req) => query.populate({ path: "assignedToUserId", select: "name role email", match: scope(req) }).populate({ path: "completedByUserId", select: "name role", match: scope(req) }).populate({ path: "assignedByUserId", select: "name role", match: scope(req) }).populate({ path: "carePlanId", select: "goal patientId", match: scope(req), populate: { path: "patientId", select: "name contact", match: scope(req) } });
 
 export const createTask = asyncHandler(async (req, res) => {
   const carePlan = await CarePlan.findOne({ _id: req.body.carePlanId, ...scope(req) }).lean();
   if (!carePlan) throw new ApiError(404, "Care plan not found in this location");
-  const assignee = await User.findOne({ _id: req.body.assignedToUserId, ...scope(req), role: { $in: ["doctor", "frontdesk", "care_coordinator"] }, isActive: { $ne: false } }).lean();
-  if (!assignee) throw new ApiError(400, "Task assignee must be an active staff user in this location; patients cannot be assigned tasks");
+  const shared = req.body.assignmentScope === "frontdesk_shared";
+  if (req.body.assignmentScope && !["personal", "frontdesk_shared"].includes(req.body.assignmentScope)) throw new ApiError(400, "Invalid task assignment scope");
+  const assignee = shared ? null : await User.findOne({ _id: req.body.assignedToUserId, ...scope(req), role: { $in: ["doctor", "frontdesk", "care_coordinator"] }, isActive: { $ne: false } }).lean();
+  if (!shared && !assignee) throw new ApiError(400, "Task assignee must be an active staff user in this location; patients cannot be assigned tasks");
+  if (assignee?.role === "frontdesk") throw new ApiError(400, "Use the Front-desk shared queue for Front-desk general tasks");
   const description = String(req.body.description || "").trim();
   if (!description) throw new ApiError(400, "Task description is required");
   const dueDate = new Date(req.body.dueDate);
   if (Number.isNaN(dueDate.getTime())) throw new ApiError(400, "Enter a valid due date");
   const type = String(req.body.type || "general").trim();
   if (!["general", "outreach"].includes(type)) throw new ApiError(400, "Task type must be general or outreach");
-  const task = await Task.create({ ...scope(req), carePlanId: carePlan._id, description, assignedToUserId: assignee._id, assignedByUserId: req.user._id, dueDate, type });
+  if (shared && type !== "general") throw new ApiError(400, "Only general tasks can use the shared Front-desk queue");
+  const task = await Task.create({ ...scope(req), carePlanId: carePlan._id, description, assignedToUserId: assignee?._id, assignmentScope: shared ? "frontdesk_shared" : "personal", assignedByUserId: req.user._id, dueDate, type });
   await AuditLog.create({ ...scope(req), actorUserId: req.user._id, action: "task_created", targetType: "Task", targetId: task._id });
   const result = await populateTask(Task.findOne({ _id: task._id, ...scope(req) }), req).lean();
   res.status(201).json({ success: true, data: { task: result } });
@@ -32,8 +37,12 @@ export const createTask = asyncHandler(async (req, res) => {
 
 export const listTasks = asyncHandler(async (req, res) => {
   const filter = { ...scope(req) };
+  if (req.user.role === "frontdesk") filter.$or = [{ assignmentScope: "frontdesk_shared" }, { assignedToUserId: req.user._id, assignmentScope: { $ne: "frontdesk_shared" } }];
   if (req.query.assignedToUserId) {
-    if (req.query.assignedToUserId === "me") filter.assignedToUserId = req.user._id;
+    if (req.query.assignedToUserId === "me") {
+      if (req.user.role === "frontdesk") throw new ApiError(400, "Use the shared Front-desk queue");
+      filter.assignedToUserId = req.user._id;
+    }
     else {
       if (String(req.query.assignedToUserId) !== String(req.user._id) && !["doctor", "admin"].includes(req.user.role)) throw new ApiError(403, "You can only view your own assigned tasks");
       filter.assignedToUserId = req.query.assignedToUserId;
@@ -51,18 +60,14 @@ export const listCriticalTasks = asyncHandler(async (req, res) => {
 });
 
 export const completeTask = asyncHandler(async (req, res) => {
-  const task = await Task.findOne({ _id: req.params.id, assignedToUserId: req.user._id, ...scope(req) });
-  if (!task) throw new ApiError(404, "Open task assigned to you was not found in this location");
-  if (task.type === "outreach") throw new ApiError(400, "Outreach tasks must be completed by recording an outreach outcome");
-  if (task.status === "completed") throw new ApiError(409, "Task is already completed");
   const outcomeNote = String(req.body.outcomeNote || "").trim();
   if (outcomeNote.length > 5000) throw new ApiError(400, "Outcome note cannot exceed 5000 characters");
-  task.status = "completed";
-  task.outcomeNote = outcomeNote || undefined;
-  task.completedAt = new Date();
-  await task.save();
+  const shared = req.user.role === "frontdesk";
+  if (shared && !(await AttendanceSession.exists({ ...scope(req), staffId: req.user._id, clockOutAt: null }))) throw new ApiError(409, "Clock in before completing a Front-desk task");
+  const task = await Task.findOneAndUpdate({ _id: req.params.id, status: "open", type: "general", ...scope(req), ...(shared ? { assignmentScope: "frontdesk_shared" } : { assignedToUserId: req.user._id, assignmentScope: { $ne: "frontdesk_shared" } }) }, { $set: { status: "completed", completedAt: new Date(), completedByUserId: req.user._id, outcomeNote: outcomeNote || undefined } }, { new: true, runValidators: true });
+  if (!task) throw new ApiError(shared ? 409 : 404, shared ? "This task is already completed or is no longer in the shared queue" : "Open task assigned to you was not found in this location");
   await AuditLog.create({ ...scope(req), actorUserId: req.user._id, action: "task_completed", targetType: "Task", targetId: task._id });
-  const result = await populateTask(Task.findOne({ _id: task._id, ...scope(req) }), req).lean();
+  const result = await populateTask(Task.findOne({ _id: task._id, ...scope(req) }).populate({ path: "completedByUserId", select: "name", match: scope(req) }), req).lean();
   res.json({ success: true, data: { task: result } });
 });
 

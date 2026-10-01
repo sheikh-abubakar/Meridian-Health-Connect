@@ -167,6 +167,7 @@ actions.push("consent_form_template_created", "consent_form_template_updated", "
 actions.push("consent_form_signed");
 actions.push("referral_created", "referral_status_updated", "referral_closed_loop");
 actions.push("lab_test_created", "lab_test_updated", "lab_tests_requested", "lab_collection_booked", "patient_lab_collection_booked", "lab_arrived", "lab_sample_collected", "lab_no_show", "lab_report_uploaded", "lab_report_viewed", "patient_lab_report_viewed");
+actions.push("frontdesk_shift_scheduled", "frontdesk_shift_rule_removed", "frontdesk_clocked_in", "frontdesk_clocked_out", "task_migrated_to_frontdesk_queue");
 Object.assign(actionLabels, {
   encounter_template_created: "Clinical template created",
   encounter_template_updated: "Clinical template updated",
@@ -216,6 +217,11 @@ Object.assign(actionLabels, {
   lab_report_uploaded: "Lab report uploaded",
   lab_report_viewed: "Lab report viewed by staff",
   patient_lab_report_viewed: "Patient viewed lab report",
+  frontdesk_shift_scheduled: "Front-desk shift scheduled",
+  frontdesk_shift_rule_removed: "Front-desk shift rule removed",
+  frontdesk_clocked_in: "Front-desk staff clocked in",
+  frontdesk_clocked_out: "Front-desk staff clocked out",
+  task_migrated_to_frontdesk_queue: "Task moved to Front-desk shared queue",
 });
 const timestamp = (value) =>
   new Intl.DateTimeFormat("en-PK", {
@@ -455,7 +461,7 @@ export function AuditLogPage() {
                         </span>
                         <div>
                           <p className="font-medium">
-                            {log.actor?.name || "Unavailable user"}
+                            {log.actor?.name || (log.action === "task_migrated_to_frontdesk_queue" ? "System migration" : "Unavailable user")}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {log.actor?.role?.replace("_", " ") ||

@@ -8,11 +8,16 @@ import { createSocketServer } from "./realtime/socketServer.js";
 import { startReminderWorker } from "./services/reminderWorker.js";
 import { startTaskEscalationWorker } from "./services/taskEscalationService.js";
 import { ensureSchedulingIndexes } from "./services/schedulingIndexService.js";
+import { migrateLegacyFrontdeskTasks } from "./services/frontdeskTaskMigration.js";
+import { AttendanceSession } from "./models/AttendanceSession.js";
+import { ShiftSchedule } from "./models/ShiftSchedule.js";
 
 async function start() {
   validateRuntimeEnv();
   await connectDatabase();
   await ensureSchedulingIndexes();
+  await Promise.all([AttendanceSession.init(), ShiftSchedule.init()]);
+  await migrateLegacyFrontdeskTasks();
   const server = createServer(app);
   const io = createSocketServer(server);
   const changeStream = startRealtimeChangeStream(io);

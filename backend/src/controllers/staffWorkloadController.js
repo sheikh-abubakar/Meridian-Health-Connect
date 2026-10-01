@@ -35,7 +35,7 @@ export const getStaffWorkload = asyncHandler(async (req, res) => {
   const [staff, activeEnrollments, openTasks, carePlans, openReferrals, pendingForms, overduePatientThreads] = await Promise.all([
     User.find({ ...scope, isActive: { $ne: false } }).select("name email role").sort({ role: 1, name: 1 }).lean(),
     MonitoringEnrollment.find({ ...scope, status: "active" }).select("_id enrolledByDoctorId createdAt").lean(),
-    Task.find({ ...scope, status: "open" }).select("assignedToUserId").lean(),
+    Task.find({ ...scope, status: "open" }).select("assignedToUserId assignmentScope").lean(),
     CarePlan.find(scope).select("owningCareTeamMemberId reviewCadence createdAt history.timestamp").lean(),
     Referral.find({ tenantId: req.tenantId, targetLocationId: req.locationId, status: { $in: ["sent", "received"] } }).select("targetDoctorId status").lean(),
     AssignedForm.countDocuments({ ...scope, status: "pending" }),
@@ -95,5 +95,5 @@ export const getStaffWorkload = asyncHandler(async (req, res) => {
     return [];
   };
 
-  res.json({ success: true, data: { staff: staff.map((member) => ({ id: member._id, name: member.name, email: member.email, role: member.role, workload: workloadFor(member) })) } });
+  res.json({ success: true, data: { frontdeskSharedOpenTasks: openTasks.filter((task) => task.assignmentScope === "frontdesk_shared").length, staff: staff.map((member) => ({ id: member._id, name: member.name, email: member.email, role: member.role, workload: workloadFor(member) })) } });
 });

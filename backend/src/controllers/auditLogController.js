@@ -16,10 +16,12 @@ import { AssignedForm } from "../models/AssignedForm.js";
 import { Referral } from "../models/Referral.js";
 import { LabTest } from "../models/LabTest.js";
 import { LabOrder } from "../models/LabOrder.js";
+import { ShiftSchedule } from "../models/ShiftSchedule.js";
+import { AttendanceSession } from "../models/AttendanceSession.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-const models = { User, Patient, Appointment, Encounter, EncounterTemplate, CarePlan, Task, RecallRequest, Availability, Resource, Waitlist, FormTemplate, AssignedForm, Referral, LabTest, LabOrder };
+const models = { User, Patient, Appointment, Encounter, EncounterTemplate, CarePlan, Task, RecallRequest, Availability, Resource, Waitlist, FormTemplate, AssignedForm, Referral, LabTest, LabOrder, ShiftSchedule, AttendanceSession };
 const scope = (req) => ({ tenantId: req.tenantId, locationId: req.locationId });
 
 function targetLabel(type, target) {
@@ -39,6 +41,8 @@ function targetLabel(type, target) {
   if (type === "Referral") return `${target.patientId?.name || "Patient"} — referral to ${target.targetDoctorId?.name || "doctor"}`;
   if (type === "LabTest") return `${target.name} (${target.code})`;
   if (type === "LabOrder") return `${target.patientId?.name || "Patient"} - ${target.testName}`;
+  if (type === "ShiftSchedule") return "Front-desk shift rule";
+  if (type === "AttendanceSession") return "Front-desk attendance session";
   return type;
 }
 
